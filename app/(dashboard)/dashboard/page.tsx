@@ -128,12 +128,12 @@ export default async function DashboardPage() {
           {isTasker && (
             <Link
               href="/jobs"
-              className="flex items-center gap-3 p-4 rounded-2xl bg-success-600 text-white hover:bg-emerald-700 transition-colors"
+              className="flex items-center gap-3 p-4 rounded-2xl bg-cyprus-600 text-white hover:bg-cyprus-700 transition-colors"
             >
               <Search className="h-5 w-5" />
               <div>
                 <div className="font-semibold">Find Work</div>
-                <div className="text-xs text-emerald-200">Browse nearby jobs</div>
+                <div className="text-xs text-cyprus-100">Browse nearby jobs</div>
               </div>
             </Link>
           )}

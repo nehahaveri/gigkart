@@ -33,7 +33,7 @@ export function DisputeForm({ jobId, userId }: { jobId: string; userId: string }
 
   if (state?.success) {
     return (
-      <div className="rounded-xl bg-amber-50 border border-amber-200 p-6 text-center">
+      <div className="rounded-xl bg-clay-50 border border-clay-100 p-6 text-center">
         <AlertTriangle className="h-8 w-8 text-clay-400 mx-auto mb-3" />
         <h2 className="font-semibold text-sand-900 mb-1">Dispute submitted</h2>
         <p className="text-sm text-sand-700">

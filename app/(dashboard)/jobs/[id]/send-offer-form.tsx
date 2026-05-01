@@ -17,7 +17,7 @@ export function SendOfferForm({
 
   if (state?.success) {
     return (
-      <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-700">
+      <div className="rounded-xl bg-success-50 border border-success-500/20 p-4 text-sm text-success-600">
         Offer sent! The poster will review your offer and get back to you.
       </div>
     )

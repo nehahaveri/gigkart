@@ -24,7 +24,7 @@ function StepIndicator({ total, current }: { total: number; current: number }) {
           key={i}
           className={cn(
             'h-1.5 rounded-full flex-1 transition-colors',
-            i < current ? 'bg-cyprus-700' : i === current ? 'bg-teal-300' : 'bg-sand-200'
+            i < current ? 'bg-cyprus-700' : i === current ? 'bg-cyprus-300' : 'bg-sand-200'
           )}
         />
       ))}
@@ -237,7 +237,7 @@ export function OnboardingWizard({ userId: _userId }: { userId: string }) {
                 Verify your identity to unlock job applications. We use DigiLocker — no data is stored on our servers.
               </p>
             </div>
-            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
+            <div className="rounded-xl bg-clay-50 border border-clay-100 p-4 text-sm text-clay-700">
               KYC via DigiLocker is coming soon. You can skip for now and complete it from Settings.
             </div>
             <div className="flex gap-3 pt-1">
