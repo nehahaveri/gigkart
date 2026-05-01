@@ -38,6 +38,20 @@ export async function POST(request: Request) {
   if (assignment.payout_id) return NextResponse.json({ error: 'Already paid out' }, { status: 400 })
   if (!assignment.submitted_at) return NextResponse.json({ error: 'Work not submitted yet' }, { status: 400 })
 
+  // Require UPI ID before releasing payout
+  const { data: taskerProfile } = await supabase
+    .from('users')
+    .select('upi_id')
+    .eq('id', assignment.tasker_id)
+    .single()
+
+  if (!taskerProfile?.upi_id) {
+    return NextResponse.json(
+      { error: 'Tasker has not added a UPI ID. They must add it in Settings before receiving payment.' },
+      { status: 422 }
+    )
+  }
+
   const payoutAmount = Math.round(job.budget * (1 - PLATFORM_COMMISSION) * 100)
   const testMode = !RAZORPAY_CONFIGURED
 

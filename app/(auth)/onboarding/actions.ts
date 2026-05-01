@@ -13,7 +13,7 @@ const taskerSchema = z.object({
   full_name: z.string().min(2, 'Name must be at least 2 characters'),
   city: z.string().min(2, 'City is required'),
   skills: z.array(z.string()).min(1, 'Select at least one skill'),
-  upi_id: z.string().min(5, 'Enter a valid UPI ID'),
+  upi_id: z.string().min(5, 'Enter a valid UPI ID').optional().or(z.literal('')),
 })
 
 export async function completePosterOnboarding(
@@ -86,7 +86,7 @@ export async function completeTaskerOnboarding(
     .update({
       full_name: parsed.data.full_name,
       city: parsed.data.city,
-      upi_id: parsed.data.upi_id,
+      ...(parsed.data.upi_id ? { upi_id: parsed.data.upi_id } : {}),
       role: ['tasker'],
     })
     .eq('id', user.id)
@@ -128,7 +128,7 @@ export async function completeBothOnboarding(
     .update({
       full_name: parsed.data.full_name,
       city: parsed.data.city,
-      upi_id: parsed.data.upi_id,
+      ...(parsed.data.upi_id ? { upi_id: parsed.data.upi_id } : {}),
       role: ['poster', 'tasker'],
     })
     .eq('id', user.id)

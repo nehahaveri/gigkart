@@ -35,6 +35,13 @@ export default async function ReviewPage({ params }: Props) {
 
   if (!assignment) notFound()
 
+  // Check if tasker has a UPI ID — needed before payout can be released
+  const { data: taskerProfile } = await supabase
+    .from('users')
+    .select('upi_id')
+    .eq('id', assignment.tasker_id)
+    .single()
+
   return (
     <>
       <Navbar />
@@ -42,7 +49,11 @@ export default async function ReviewPage({ params }: Props) {
         <div className="mb-5">
           <BackButton href={`/job/${id}/active`} label="Back to job" />
         </div>
-        <ReviewApproval job={job} assignment={assignment} />
+        <ReviewApproval
+          job={job}
+          assignment={assignment}
+          taskerHasUpi={!!taskerProfile?.upi_id}
+        />
       </div>
     </>
   )

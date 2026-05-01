@@ -260,16 +260,21 @@ export function OnboardingWizard({ userId: _userId }: { userId: string }) {
               <p className="text-sm text-sand-500 mt-1">Where should we send your earnings?</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-sand-800 mb-1.5">UPI ID</label>
+              <label className="block text-sm font-medium text-sand-800 mb-1.5">
+                UPI ID
+                <span className="ml-2 text-xs font-normal text-sand-400">(optional — add later)</span>
+              </label>
               <Input
                 name="upi_id"
                 placeholder="yourname@upi"
-                required
               />
               {state?.errors?.upi_id && (
                 <p className="text-xs text-danger-500 mt-1">{state.errors.upi_id}</p>
               )}
               <p className="text-xs text-sand-500 mt-1">e.g. yourname@okicici, 9876543210@ybl</p>
+            </div>
+            <div className="rounded-xl bg-clay-50 border border-clay-100 p-3 text-xs text-clay-700">
+              You can skip this now and add your UPI ID later from <strong>Settings</strong>. You will need it before your first payout.
             </div>
             {state?.errors?._ && (
               <p className="text-xs text-danger-500">{state.errors._}</p>
@@ -277,6 +282,9 @@ export function OnboardingWizard({ userId: _userId }: { userId: string }) {
             <div className="flex gap-3 pt-1">
               <Button type="button" variant="outline" onClick={() => setStep(3)}>
                 <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <Button type="submit" variant="outline" className="flex-1" disabled={pending}>
+                Skip for now
               </Button>
               <Button type="submit" className="flex-1" disabled={pending}>
                 {pending ? 'Saving…' : 'Finish setup'}

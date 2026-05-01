@@ -29,9 +29,11 @@ type AssignmentData = {
 export function ReviewApproval({
   job,
   assignment,
+  taskerHasUpi,
 }: {
   job: JobData
   assignment: AssignmentData
+  taskerHasUpi: boolean
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -109,6 +111,16 @@ export function ReviewApproval({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* UPI warning */}
+      {!taskerHasUpi && (
+        <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>
+            The tasker hasn't added a UPI ID yet. Payment will be blocked until they add it in their Settings. You can still approve — the payout will process once they do.
+          </span>
+        </div>
       )}
 
       {/* Payment breakdown */}
