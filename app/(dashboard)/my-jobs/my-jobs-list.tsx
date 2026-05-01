@@ -2,11 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils/format'
-import { Clock, Users, Zap, ChevronRight } from 'lucide-react'
+import { Clock, Users, Zap, ChevronRight, Plus, FileText, Briefcase } from 'lucide-react'
 import type { JobStatus } from '@/types'
 
 type JobRow = {
@@ -44,8 +44,8 @@ export function MyJobsList({ jobs }: { jobs: JobRow[] }) {
 
   return (
     <div>
-      {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-3 mb-4 border-b border-sand-100">
+      {/* Underline tabs */}
+      <div className="flex overflow-x-auto border-b border-sand-200 mb-5" style={{ scrollbarWidth: 'none' }}>
         {TABS.map(({ key, label }) => {
           const count = key === 'all' ? jobs.length : jobs.filter((j) => j.status === key).length
           return (
@@ -54,15 +54,18 @@ export function MyJobsList({ jobs }: { jobs: JobRow[] }) {
               type="button"
               onClick={() => setTab(key)}
               className={cn(
-                'shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                'shrink-0 flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
                 tab === key
-                  ? 'bg-cyprus-50 text-cyprus-800'
-                  : 'text-sand-500 hover:text-sand-800 hover:bg-sand-50'
+                  ? 'border-cyprus-700 text-cyprus-700'
+                  : 'border-transparent text-sand-500 hover:text-sand-700'
               )}
             >
               {label}
               {count > 0 && (
-                <span className="ml-1.5 text-xs text-sand-500">({count})</span>
+                <span className={cn(
+                  'inline-flex items-center justify-center h-4.5 min-w-[1.1rem] px-1 rounded-full text-[10px] font-bold',
+                  tab === key ? 'bg-cyprus-100 text-cyprus-700' : 'bg-sand-100 text-sand-500'
+                )}>{count}</span>
               )}
             </button>
           )
@@ -71,49 +74,63 @@ export function MyJobsList({ jobs }: { jobs: JobRow[] }) {
 
       {/* List */}
       {filtered.length === 0 ? (
-        <div className="text-center py-12 text-sand-500 text-sm">
-          No jobs in this category.
+        <div className="rounded-2xl border border-dashed border-sand-200 p-10 text-center">
+          {tab === 'all' ? (
+            <>
+              <Plus className="h-10 w-10 text-sand-300 mx-auto mb-3" />
+              <p className="text-sm font-medium text-sand-700">No postings yet</p>
+              <p className="text-xs text-sand-400 mt-1 mb-4">Post your first job to start receiving offers.</p>
+              <Link href="/post-job"><Button size="sm">Post a Job</Button></Link>
+            </>
+          ) : (
+            <>
+              <FileText className="h-10 w-10 text-sand-300 mx-auto mb-3" />
+              <p className="text-sm font-medium text-sand-700">No {tab} jobs</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
           {filtered.map((job) => {
             const offerCount = job.offers?.[0]?.count ?? 0
             return (
-              <Link key={job.id} href={`/my-jobs/${job.id}/offers`}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardContent className="p-4 flex items-center gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <Badge variant={STATUS_VARIANT[job.status] ?? 'secondary'}>
-                          {job.status}
-                        </Badge>
-                        <span className="text-xs text-cyprus-700 bg-cyprus-50 px-2 py-0.5 rounded-full">
-                          {job.category}
+              <Link key={job.id} href={`/my-jobs/${job.id}/offers`} className="block">
+                <div className="bg-white rounded-2xl border border-sand-200 p-4 flex items-center gap-3 hover:border-sand-300 hover:shadow-sm transition-all cursor-pointer">
+                  <div className="h-10 w-10 rounded-xl bg-sand-100 flex items-center justify-center shrink-0">
+                    <Briefcase className="h-5 w-5 text-sand-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                      <Badge variant={STATUS_VARIANT[job.status] ?? 'secondary'} className="text-[10px]">
+                        {job.status === 'open' ? 'Accepting offers' : job.status}
+                      </Badge>
+                      <span className="text-[11px] text-cyprus-700 bg-cyprus-50 px-2 py-0.5 rounded-full font-medium">
+                        {job.category}
+                      </span>
+                      {job.is_urgent && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
+                          <Zap className="h-2.5 w-2.5" />Urgent
                         </span>
-                        {job.is_urgent && (
-                          <Badge variant="urgent">
-                            <Zap className="h-3 w-3 mr-0.5" />Urgent
-                          </Badge>
-                        )}
-                      </div>
-                      <h3 className="font-semibold text-sand-900 truncate">{job.title}</h3>
-                      <div className="flex items-center gap-3 mt-1.5 text-xs text-sand-500">
-                        <span className="font-medium text-sand-900">
-                          {formatCurrency(job.budget)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3" />
-                          {offerCount} offer{offerCount !== 1 ? 's' : ''}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatRelativeTime(job.created_at)}
-                        </span>
-                      </div>
+                      )}
                     </div>
-                    <ChevronRight className="h-4 w-4 text-sand-300 shrink-0" />
-                  </CardContent>
-                </Card>
+                    <h3 className="font-semibold text-sand-900 truncate text-sm">{job.title}</h3>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-sand-400">
+                      <span className="flex items-center gap-0.5">
+                        <Users className="h-3 w-3" />
+                        {offerCount} offer{offerCount !== 1 ? 's' : ''}
+                      </span>
+                      <span className="flex items-center gap-0.5">
+                        <Clock className="h-3 w-3" />
+                        {formatRelativeTime(job.created_at)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="font-bold text-sand-900 text-sm">{formatCurrency(job.budget)}</div>
+                    <div className="text-[10px] text-sand-400 capitalize">{job.budget_type}</div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-sand-300 shrink-0" />
+                </div>
               </Link>
             )
           })}

@@ -8,6 +8,7 @@ import { JOB_CATEGORIES } from '@/types'
 import { createJob, type PostJobState } from './actions'
 import {
   Loader2, MapPin, Upload, X, Zap, Shield, Clock, IndianRupee,
+  FileText, Tag, Calendar, Wallet, Settings2,
 } from 'lucide-react'
 
 const DURATION_OPTIONS = [
@@ -31,13 +32,35 @@ const PAYMENT_MODES = [
   { value: '50_50_split', label: '50-50', desc: 'Half now, half after', icon: Clock },
 ]
 
+const CATEGORY_ICONS: Record<string, string> = {
+  Cleaning: '🧹', Delivery: '📦', Tutoring: '📚',
+  Repairs: '🔧', Cooking: '🍳', 'Personal Care': '💆',
+  Moving: '🚚', Other: '✨',
+}
+
 function FieldError({ error }: { error?: string }) {
   if (!error) return null
   return <p className="text-xs text-danger-500 mt-1">{error}</p>
 }
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-lg font-semibold text-sand-900 pt-4 pb-2 border-t border-sand-100">{children}</h2>
+const STEPS: { step: number; label: string; icon: React.ElementType }[] = [
+  { step: 1, label: 'Job details', icon: FileText },
+  { step: 2, label: 'Timing', icon: Calendar },
+  { step: 3, label: 'Location', icon: MapPin },
+  { step: 4, label: 'Budget & Payment', icon: Wallet },
+  { step: 5, label: 'Preferences', icon: Settings2 },
+]
+
+function SectionHeading({ step, label, icon: Icon }: { step: number; label: string; icon: React.ElementType }) {
+  return (
+    <div className="flex items-center gap-3 pt-6 pb-2 border-t border-sand-100">
+      <div className="h-7 w-7 rounded-full bg-cyprus-700 text-white flex items-center justify-center text-xs font-bold shrink-0">{step}</div>
+      <div className="flex items-center gap-1.5">
+        <Icon className="h-4 w-4 text-sand-500" />
+        <h2 className="font-semibold text-sand-900 text-sm">{label}</h2>
+      </div>
+    </div>
+  )
 }
 
 export function PostJobForm() {
@@ -70,19 +93,23 @@ export function PostJobForm() {
   }
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form action={formAction} className="space-y-5">
       {/* Test mode banner */}
       <div className="flex items-start gap-3 rounded-2xl border border-clay-100 bg-clay-50 p-4">
-        <Zap className="h-5 w-5 text-clay-500 flex-shrink-0 mt-0.5" />
-        <div className="text-sm">
+        <Zap className="h-4 w-4 text-clay-500 flex-shrink-0 mt-0.5" />
+        <div className="text-xs">
           <div className="font-semibold text-clay-700">Test mode — payments simulated</div>
-          <div className="text-clay-600 mt-0.5">
-            You can post jobs and accept offers without setting up Razorpay. No real money moves until you configure payment keys later.
-          </div>
+          <div className="text-clay-600 mt-0.5">No real money moves until Razorpay keys are configured.</div>
         </div>
       </div>
 
-      {/* Title */}
+      <div className="flex items-center gap-3 pb-2">
+        <div className="h-7 w-7 rounded-full bg-cyprus-700 text-white flex items-center justify-center text-xs font-bold shrink-0">1</div>
+        <div className="flex items-center gap-1.5">
+          <FileText className="h-4 w-4 text-sand-500" />
+          <h2 className="font-semibold text-sand-900 text-sm">Job details</h2>
+        </div>
+      </div>
       <div>
         <label className="block text-sm font-medium text-sand-800 mb-1.5">
           Job title
@@ -104,13 +131,13 @@ export function PostJobForm() {
               type="button"
               onClick={() => setCategory(cat)}
               className={cn(
-                'px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
                 category === cat
                   ? 'bg-cyprus-700 text-white border-cyprus-700'
                   : 'bg-white text-sand-700 border-sand-200 hover:border-sand-300'
               )}
             >
-              {cat}
+              <span>{CATEGORY_ICONS[cat] ?? '✨'}</span>{cat}
             </button>
           ))}
         </div>
@@ -168,7 +195,7 @@ export function PostJobForm() {
         </div>
       </div>
 
-      <SectionHeading>Timing</SectionHeading>
+      <SectionHeading step={2} label="Timing" icon={Calendar} />
 
       {/* Duration */}
       <div>
@@ -207,7 +234,7 @@ export function PostJobForm() {
         </div>
       </div>
 
-      <SectionHeading>Location</SectionHeading>
+      <SectionHeading step={3} label="Location" icon={MapPin} />
 
       {/* Remote toggle */}
       <div className="flex items-center gap-3">
@@ -262,7 +289,7 @@ export function PostJobForm() {
         </>
       )}
 
-      <SectionHeading>Budget & Payment</SectionHeading>
+      <SectionHeading step={4} label="Budget & Payment" icon={Wallet} />
 
       {/* Budget */}
       <div className="grid grid-cols-2 gap-4">
@@ -329,7 +356,7 @@ export function PostJobForm() {
         </div>
       </div>
 
-      <SectionHeading>Preferences</SectionHeading>
+      <SectionHeading step={5} label="Preferences" icon={Settings2} />
 
       <div className="grid grid-cols-2 gap-4">
         {/* Num taskers */}
