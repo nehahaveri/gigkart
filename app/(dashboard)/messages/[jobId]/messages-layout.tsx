@@ -27,7 +27,7 @@ export function MessagesLayout({
   const [showProfile, setShowProfile] = useState(false)
 
   return (
-    <div className="flex flex-col h-[100dvh] md:h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-[calc(100dvh-4rem-60px)] md:h-[calc(100vh-4rem)]">
       {/* Mobile: back + profile toggle */}
       <div className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-sand-200 bg-white shrink-0">
         <Link href={backHref} className="h-8 w-8 rounded-xl flex items-center justify-center hover:bg-sand-100 transition-colors">

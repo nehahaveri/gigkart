@@ -27,33 +27,30 @@ export default async function MessagePage({ params }: Props) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Fetch job + poster
+  // Step 1: Fetch job (plain fields only, no user join) for access check
   const { data: job, error: jobError } = await supabase
     .from('jobs')
-    .select(`id, title, status, poster_id, poster:users!jobs_poster_id_fkey(${USER_FIELDS})`)
+    .select('id, title, status, poster_id')
     .eq('id', jobId)
     .single()
 
   if (jobError || !job) notFound()
 
-  // Fetch assignment (tasker)
+  const isPoster = job.poster_id === user.id
+
+  // Step 2: Fetch assignment (plain fields only) for access check
   const { data: assignment } = await supabase
     .from('job_assignments')
-    .select(`tasker_id, tasker:users!job_assignments_tasker_id_fkey(${USER_FIELDS})`)
+    .select('id, tasker_id')
     .eq('job_id', jobId)
     .maybeSingle()
 
-  // Determine who the current user is in this conversation
-  const isPoster = job.poster_id === user.id
   const isTasker = assignment?.tasker_id === user.id
 
   // Access control: must be poster OR assigned tasker
   if (!isPoster && !isTasker) redirect('/messages')
 
-  const poster = job.poster as unknown as Partial<User>
-  const tasker = assignment?.tasker as unknown as Partial<User> | undefined
-
-  // Poster with no accepted offer yet — show a waiting state instead of 404
+  // Poster with no accepted offer yet — show a waiting state
   if (isPoster && !assignment) {
     return (
       <>
@@ -79,12 +76,17 @@ export default async function MessagePage({ params }: Props) {
     )
   }
 
-  // Tasker with no assignment — shouldn't happen but guard anyway
   if (!assignment) redirect('/messages')
 
-  const otherUser = isPoster ? tasker : poster
-  if (!otherUser) notFound()
+  // Step 3: Fetch the OTHER party's profile (separate query, clean)
+  const otherUserId = isPoster ? assignment.tasker_id : job.poster_id
+  const { data: otherUserData } = await supabase
+    .from('users')
+    .select(USER_FIELDS)
+    .eq('id', otherUserId)
+    .single()
 
+  const otherUser = (otherUserData ?? { id: otherUserId }) as Partial<User>
   const otherRole: 'poster' | 'tasker' = isPoster ? 'tasker' : 'poster'
   const backHref = isPoster ? `/my-jobs/${jobId}/offers` : `/job/${jobId}/active`
 
