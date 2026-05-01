@@ -36,6 +36,8 @@ export function OnboardingWizard({ userId: _userId }: { userId: string }) {
   const [role, setRole] = useState<Role | null>(null)
   const [step, setStep] = useState(0)
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
+  const [fullName, setFullName] = useState('')
+  const [city, setCity] = useState('')
 
   const totalSteps = role === 'poster' ? 2 : role === 'tasker' ? 4 : role === 'both' ? 4 : 1
 
@@ -136,8 +138,10 @@ export function OnboardingWizard({ userId: _userId }: { userId: string }) {
     <div className="w-full max-w-md">
       <StepIndicator total={totalSteps} current={step} />
       <form action={formAction} className="bg-white rounded-2xl border border-sand-100 shadow-sm p-6 space-y-5">
-        {/* Hidden fields */}
+        {/* Hidden fields — always present so formData is complete at any step */}
         <input type="hidden" name="skills" value={JSON.stringify(selectedSkills)} />
+        <input type="hidden" name="full_name" value={fullName} />
+        <input type="hidden" name="city" value={city} />
 
         {/* Step 1: Name + City */}
         {step === 1 && (
@@ -146,9 +150,11 @@ export function OnboardingWizard({ userId: _userId }: { userId: string }) {
             <div>
               <label className="block text-sm font-medium text-sand-800 mb-1.5">Full name</label>
               <Input
-                name="full_name"
+                name="_full_name_visible"
                 placeholder="Priya Sharma"
                 required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
               />
               {state?.errors?.full_name && (
                 <p className="text-xs text-danger-500 mt-1">{state.errors.full_name}</p>
@@ -157,9 +163,11 @@ export function OnboardingWizard({ userId: _userId }: { userId: string }) {
             <div>
               <label className="block text-sm font-medium text-sand-800 mb-1.5">City</label>
               <Input
-                name="city"
+                name="_city_visible"
                 placeholder="Mumbai"
                 required
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
               />
               {state?.errors?.city && (
                 <p className="text-xs text-sand-500 mt-1">{state.errors.city}</p>
@@ -170,12 +178,12 @@ export function OnboardingWizard({ userId: _userId }: { userId: string }) {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               {role === 'poster' ? (
-                <Button type="submit" className="flex-1" disabled={pending}>
+                <Button type="submit" className="flex-1" disabled={pending || !fullName.trim() || !city.trim()}>
                   {pending ? 'Saving…' : 'Finish'}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               ) : (
-                <Button type="button" className="flex-1" onClick={() => setStep(2)}>
+                <Button type="button" className="flex-1" onClick={() => setStep(2)} disabled={!fullName.trim() || !city.trim()}>
                   Continue
                   <ArrowRight className="h-4 w-4" />
                 </Button>
