@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
 import { OffersList } from './offers-list'
+import { BackButton } from '@/components/ui/back-button'
 import type { Metadata } from 'next'
 
 type Props = { params: Promise<{ id: string }> }
@@ -40,10 +41,8 @@ export default async function OffersPage({ params }: Props) {
       <Navbar />
       <div className="mx-auto max-w-3xl px-4 py-8">
         <div className="mb-6">
-          <a href="/my-jobs" className="text-sm text-cyprus-700 hover:underline mb-2 inline-block">
-            &larr; Back to My Jobs
-          </a>
-          <h1 className="text-2xl font-bold text-sand-900">{job.title}</h1>
+          <BackButton href="/my-jobs" label="My Jobs" />
+          <h1 className="text-2xl font-bold text-sand-900 mt-3">{job.title}</h1>
           <p className="text-sm text-sand-500 mt-1">
             {(offers ?? []).length} offer{(offers ?? []).length !== 1 ? 's' : ''} received
           </p>

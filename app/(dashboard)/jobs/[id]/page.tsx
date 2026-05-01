@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/ui/back-button'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils/format'
 import { MapPin, Clock, Users, Shield, Zap, Star, Calendar } from 'lucide-react'
 import { SendOfferForm } from './send-offer-form'
@@ -75,6 +76,9 @@ export default async function JobDetailPage({ params }: Props) {
     <>
       <Navbar />
       <div className="mx-auto max-w-3xl px-4 py-8">
+        <div className="mb-5">
+          <BackButton href="/jobs" label="Browse jobs" />
+        </div>
         {/* Header */}
         <div className="flex flex-wrap gap-2 mb-2">
           <Badge>{job.category}</Badge>
@@ -190,7 +194,7 @@ export default async function JobDetailPage({ params }: Props) {
         )}
 
         {alreadyApplied && (
-          <div className="mt-8 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-700">
+          <div className="mt-8 rounded-xl bg-success-50 border border-success-500/20 p-4 text-sm text-success-600">
             You have already sent an offer for this job.
           </div>
         )}

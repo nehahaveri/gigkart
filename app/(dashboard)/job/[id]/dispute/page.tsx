@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
 import { DisputeForm } from './dispute-form'
+import { BackButton } from '@/components/ui/back-button'
 import type { Metadata } from 'next'
 
 type Props = { params: Promise<{ id: string }> }
@@ -46,14 +47,14 @@ export default async function DisputePage({ params }: Props) {
     <>
       <Navbar />
       <div className="mx-auto max-w-xl px-4 py-8">
-        <a href={`/job/${id}/active`} className="text-sm text-cyprus-700 hover:underline mb-4 inline-block">
-          &larr; Back to job
-        </a>
+        <div className="mb-5">
+          <BackButton href={`/job/${id}/active`} label="Back to job" />
+        </div>
         <h1 className="text-2xl font-bold text-sand-900 mb-1">Raise a dispute</h1>
         <p className="text-sm text-sand-500 mb-6">{job.title}</p>
 
         {existing ? (
-          <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
+          <div className="rounded-xl bg-clay-50 border border-clay-100 p-4 text-sm text-clay-700">
             A dispute has already been raised for this job (status: {existing.status}).
             Our team is reviewing it.
           </div>

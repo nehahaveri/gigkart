@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
 import { ActiveJobView } from './active-job-view'
+import { BackButton } from '@/components/ui/back-button'
 import type { Metadata } from 'next'
 
 type Props = { params: Promise<{ id: string }> }
@@ -50,6 +51,9 @@ export default async function ActiveJobPage({ params }: Props) {
     <>
       <Navbar />
       <div className="mx-auto max-w-2xl px-4 py-8">
+        <div className="mb-5">
+          <BackButton href={isPoster ? '/my-jobs' : '/my-work'} label={isPoster ? 'My Jobs' : 'My Work'} />
+        </div>
         <ActiveJobView
           job={job}
           assignment={assignment}

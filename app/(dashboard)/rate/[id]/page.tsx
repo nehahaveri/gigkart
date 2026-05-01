@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
 import { RatingForm } from './rating-form'
+import { BackButton } from '@/components/ui/back-button'
 import type { Metadata } from 'next'
 
 type Props = { params: Promise<{ id: string }> }
@@ -56,6 +57,9 @@ export default async function RatePage({ params }: Props) {
     <>
       <Navbar />
       <div className="mx-auto max-w-xl px-4 py-8">
+        <div className="mb-5">
+          <BackButton href="/my-work" label="My Work" />
+        </div>
         <h1 className="text-2xl font-bold text-sand-900 mb-1">Leave a review</h1>
         <p className="text-sm text-sand-500 mb-6">{job.title}</p>
 

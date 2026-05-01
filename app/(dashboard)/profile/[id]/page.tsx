@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { BackButton } from '@/components/ui/back-button'
 import {
   Star, Shield, MapPin, Calendar, CheckCircle, Settings, Briefcase, Award,
 } from 'lucide-react'
@@ -79,56 +80,66 @@ export default async function ProfilePage({ params }: Props) {
     <>
       <Navbar />
       <main className="min-h-screen bg-sand">
-        {/* Profile header band — cyprus accented strip */}
-        <div className="relative h-32 md:h-40 bg-cyprus-700 overflow-hidden">
+
+        {/* ── Cover band ──────────────────────────────────── */}
+        <div className="relative h-36 md:h-44 bg-cyprus-700 overflow-hidden">
           <div className="pointer-events-none absolute -top-20 -right-20 h-72 w-72 rounded-full bg-cyprus-500/30 blur-3xl" aria-hidden />
           <div className="pointer-events-none absolute -bottom-32 -left-32 h-72 w-72 rounded-full bg-clay-400/15 blur-3xl" aria-hidden />
         </div>
 
-        <div className="mx-auto max-w-3xl px-4 -mt-20 pb-16">
-          {/* Avatar + name */}
-          <div className="flex items-end justify-between gap-4 mb-8 flex-wrap">
-            <div className="flex items-end gap-5">
-              <div className="h-32 w-32 rounded-3xl bg-sand-50 border-4 border-sand flex items-center justify-center text-cyprus-700 font-bold text-4xl shadow-lg">
-                {initials}
-              </div>
-              <div className="pb-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-2xl md:text-3xl font-bold text-sand-900 tracking-tight">
-                    {profile.full_name ?? 'Anonymous'}
-                  </h1>
-                  {profile.aadhaar_verified && (
-                    <Badge variant="success" className="gap-1">
-                      <Shield className="h-3 w-3" />Verified
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 mt-1.5 text-sm text-sand-600 flex-wrap">
-                  {profile.city && (
-                    <span className="flex items-center gap-1">
-                      <MapPin className="h-3.5 w-3.5" />{profile.city}
-                    </span>
-                  )}
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5" />
-                    Joined {new Date(profile.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
-                  </span>
-                </div>
-                <div className="flex gap-1.5 mt-3">
-                  {roles.map((r) => (
-                    <Badge key={r} variant="default" className="capitalize">{r}</Badge>
-                  ))}
-                </div>
-              </div>
+        <div className="mx-auto max-w-3xl px-4 pb-16">
+
+          {/* ── Back link — sits just below the cover on sand bg ── */}
+          <div className="pt-4 pb-1">
+            {!isOwnProfile && <BackButton href="/jobs" label="Back" />}
+          </div>
+
+          {/* ── Avatar row — only the avatar overlaps the cover ── */}
+          <div className="flex items-end justify-between -mt-14 mb-5 flex-wrap gap-3">
+            {/* Avatar */}
+            <div className="relative z-10 h-28 w-28 md:h-32 md:w-32 rounded-3xl bg-sand-50 border-[3px] border-sand shadow-xl flex items-center justify-center text-cyprus-700 font-bold text-4xl select-none shrink-0">
+              {initials}
             </div>
+
+            {/* Edit button — pushed to the right, sits on sand bg */}
             {isOwnProfile && (
-              <Button variant="outline" asChild className="gap-1.5">
+              <Button variant="outline" asChild className="gap-1.5 mb-1">
                 <Link href="/settings">
                   <Settings className="h-4 w-4" />
                   Edit profile
                 </Link>
               </Button>
             )}
+          </div>
+
+          {/* ── Name + meta — fully on sand background ──────── */}
+          <div className="mb-8">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl md:text-3xl font-bold text-sand-900 tracking-tight">
+                {profile.full_name ?? 'Anonymous'}
+              </h1>
+              {profile.aadhaar_verified && (
+                <Badge variant="success" className="gap-1">
+                  <Shield className="h-3 w-3" />Verified
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-2 text-sm text-sand-600 flex-wrap">
+              {profile.city && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" />{profile.city}
+                </span>
+              )}
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5" />
+                Joined {new Date(profile.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+              </span>
+            </div>
+            <div className="flex gap-1.5 mt-3">
+              {roles.map((r) => (
+                <Badge key={r} variant="default" className="capitalize">{r}</Badge>
+              ))}
+            </div>
           </div>
 
           {/* Stats card */}
