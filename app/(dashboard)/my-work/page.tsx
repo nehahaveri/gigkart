@@ -5,7 +5,7 @@ import { Navbar } from '@/components/layout/navbar'
 import { MyWorkList } from './my-work-list'
 
 export const metadata: Metadata = {
-  title: 'My Work',
+  title: 'My Gigs',
   description: 'Track your active tasks, offers, and earnings on GigKart.',
 }
 
@@ -49,7 +49,7 @@ export default async function MyWorkPage() {
       <div className="mx-auto max-w-3xl px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-sand-900">My Work</h1>
+            <h1 className="text-2xl font-bold text-sand-900">My Gigs</h1>
             <p className="text-sm text-sand-500 mt-1">Your offers, active jobs, and earnings</p>
           </div>
           <div className="text-right">

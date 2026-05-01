@@ -41,7 +41,7 @@ export default async function OffersPage({ params }: Props) {
       <Navbar />
       <div className="mx-auto max-w-3xl px-4 py-8">
         <div className="mb-6">
-          <BackButton href="/my-jobs" label="My Jobs" />
+          <BackButton href="/my-jobs" label="My Postings" />
           <h1 className="text-2xl font-bold text-sand-900 mt-3">{job.title}</h1>
           <p className="text-sm text-sand-500 mt-1">
             {(offers ?? []).length} offer{(offers ?? []).length !== 1 ? 's' : ''} received

@@ -11,7 +11,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import type { Job, UserRole } from '@/types'
 
-export const metadata: Metadata = { title: 'Dashboard' }
+export const metadata: Metadata = { title: 'Home' }
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -107,7 +107,7 @@ export default async function DashboardPage() {
               ? "What would you like to do today?"
               : isPoster
               ? "Manage your posted jobs and offers"
-              : "Find work near you and track your earnings"}
+              : "Browse gigs near you and track your earnings"}
           </p>
         </div>
 
@@ -132,7 +132,7 @@ export default async function DashboardPage() {
             >
               <Search className="h-5 w-5" />
               <div>
-                <div className="font-semibold">Find Work</div>
+                <div className="font-semibold">Browse Gigs</div>
                 <div className="text-xs text-cyprus-100">Browse nearby jobs</div>
               </div>
             </Link>
@@ -155,7 +155,7 @@ export default async function DashboardPage() {
                   </div>
                 </div>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href="/my-work">View work</Link>
+                  <Link href="/my-work">View my gigs</Link>
                 </Button>
               </CardContent>
             </Card>

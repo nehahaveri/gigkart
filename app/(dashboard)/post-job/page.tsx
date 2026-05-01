@@ -23,7 +23,7 @@ export default async function PostJobPage() {
       <Navbar />
       <div className="mx-auto max-w-2xl px-4 py-8">
         <div className="mb-5">
-          <BackButton href="/dashboard" label="Dashboard" />
+          <BackButton href="/dashboard" label="Home" />
         </div>
         <h1 className="text-2xl font-bold text-sand-900 mb-1">Post a new job</h1>
         <p className="text-sm text-sand-500 mb-8">

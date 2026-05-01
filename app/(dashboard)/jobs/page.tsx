@@ -5,7 +5,7 @@ import { JobsFeed } from './jobs-feed'
 import { Loader2 } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Find Work',
+  title: 'Browse Gigs',
   description: 'Browse nearby micro-gig jobs on GigKart. Filter by category, distance, pay, and more.',
 }
 
@@ -14,7 +14,7 @@ export default function JobsPage() {
     <>
       <Navbar />
       <div className="mx-auto max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-bold text-sand-900 mb-1">Find work near you</h1>
+        <h1 className="text-2xl font-bold text-sand-900 mb-1">Browse gigs near you</h1>
         <p className="text-sm text-sand-500 mb-6">
           Jobs posted by people in your area. Send offers and start earning.
         </p>

@@ -7,18 +7,18 @@ import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/button'
 
 const NAV_LINKS = [
-  { href: '/jobs',    label: 'Find Work', exact: false },
-  { href: '/my-jobs', label: 'My Jobs',   exact: false },
-  { href: '/my-work', label: 'My Work',   exact: false },
-  { href: '/dashboard', label: 'Dashboard', exact: false },
+  { href: '/jobs',      label: 'Browse Gigs',  exact: false },
+  { href: '/my-jobs',   label: 'My Postings',  exact: false },
+  { href: '/my-work',   label: 'My Gigs',      exact: false },
+  { href: '/dashboard', label: 'Home',          exact: false },
 ]
 
 const MOBILE_NAV = [
-  { href: '/jobs',      label: 'Find Work',  icon: Search },
-  { href: '/my-jobs',   label: 'My Jobs',    icon: Briefcase },
-  { href: '/my-work',   label: 'My Work',    icon: Wrench },
-  { href: '/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
-  { href: '/profile/me',label: 'Profile',    icon: User },
+  { href: '/jobs',       label: 'Browse',    icon: Search },
+  { href: '/my-jobs',    label: 'Postings',  icon: Briefcase },
+  { href: '/my-work',    label: 'My Gigs',   icon: Wrench },
+  { href: '/dashboard',  label: 'Home',      icon: LayoutDashboard },
+  { href: '/profile/me', label: 'Profile',   icon: User },
 ]
 
 export function Navbar() {

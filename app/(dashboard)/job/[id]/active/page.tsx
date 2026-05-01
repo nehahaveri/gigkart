@@ -52,7 +52,7 @@ export default async function ActiveJobPage({ params }: Props) {
       <Navbar />
       <div className="mx-auto max-w-2xl px-4 py-8">
         <div className="mb-5">
-          <BackButton href={isPoster ? '/my-jobs' : '/my-work'} label={isPoster ? 'My Jobs' : 'My Work'} />
+          <BackButton href={isPoster ? '/my-jobs' : '/my-work'} label={isPoster ? 'My Postings' : 'My Gigs'} />
         </div>
         <ActiveJobView
           job={job}
