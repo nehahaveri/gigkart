@@ -7,9 +7,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils/cn'
 import { JOB_CATEGORIES } from '@/types'
 import {
-  completePosterOnboarding,
-  completeTaskerOnboarding,
-  completeBothOnboarding,
+  completeOnboarding,
 } from './actions'
 
 type Role = 'poster' | 'tasker' | 'both'
@@ -41,17 +39,7 @@ export function OnboardingWizard({ userId: _userId }: { userId: string }) {
 
   const totalSteps = role === 'poster' ? 2 : role === 'tasker' ? 4 : role === 'both' ? 4 : 1
 
-  const action =
-    role === 'poster'
-      ? completePosterOnboarding
-      : role === 'tasker'
-      ? completeTaskerOnboarding
-      : completeBothOnboarding
-
-  const [state, formAction, pending] = useActionState(
-    action ?? completePosterOnboarding,
-    {}
-  )
+  const [state, formAction, pending] = useActionState(completeOnboarding, {})
 
   function toggleSkill(skill: string) {
     setSelectedSkills((prev) =>
@@ -139,6 +127,7 @@ export function OnboardingWizard({ userId: _userId }: { userId: string }) {
       <StepIndicator total={totalSteps} current={step} />
       <form action={formAction} className="bg-white rounded-2xl border border-sand-100 shadow-sm p-6 space-y-5">
         {/* Hidden fields — always present so formData is complete at any step */}
+        <input type="hidden" name="role" value={role ?? ''} />
         <input type="hidden" name="skills" value={JSON.stringify(selectedSkills)} />
         <input type="hidden" name="full_name" value={fullName} />
         <input type="hidden" name="city" value={city} />

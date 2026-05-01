@@ -16,7 +16,7 @@ const taskerSchema = z.object({
   upi_id: z.string().min(5, 'Enter a valid UPI ID').optional().or(z.literal('')),
 })
 
-export async function completePosterOnboarding(
+export async function completeOnboarding(
   _prev: unknown,
   formData: FormData
 ): Promise<{ errors?: Record<string, string> }> {
@@ -26,114 +26,55 @@ export async function completePosterOnboarding(
   } = await supabase.auth.getUser()
   if (!user) return { errors: { _: 'Not authenticated' } }
 
-  const raw = {
-    full_name: formData.get('full_name') as string,
-    city: formData.get('city') as string,
-  }
+  const role = formData.get('role') as string
 
-  const parsed = posterSchema.safeParse(raw)
-  if (!parsed.success) {
-    const errors: Record<string, string> = {}
-    for (const [key, msgs] of Object.entries(parsed.error.flatten().fieldErrors)) {
-      errors[key] = msgs[0]
+  if (role === 'poster') {
+    const raw = {
+      full_name: formData.get('full_name') as string,
+      city: formData.get('city') as string,
     }
-    return { errors }
+    const parsed = posterSchema.safeParse(raw)
+    if (!parsed.success) {
+      const errors: Record<string, string> = {}
+      for (const [key, msgs] of Object.entries(parsed.error.flatten().fieldErrors)) {
+        errors[key] = msgs[0]
+      }
+      return { errors }
+    }
+    const { error } = await supabase
+      .from('users')
+      .update({ full_name: parsed.data.full_name, city: parsed.data.city, role: ['poster'] })
+      .eq('id', user.id)
+    if (error) return { errors: { _: error.message } }
+  } else {
+    const skillsRaw = formData.get('skills') as string
+    const raw = {
+      full_name: formData.get('full_name') as string,
+      city: formData.get('city') as string,
+      skills: skillsRaw ? JSON.parse(skillsRaw) : [],
+      upi_id: formData.get('upi_id') as string,
+    }
+    const parsed = taskerSchema.safeParse(raw)
+    if (!parsed.success) {
+      const errors: Record<string, string> = {}
+      for (const [key, msgs] of Object.entries(parsed.error.flatten().fieldErrors)) {
+        errors[key] = msgs[0]
+      }
+      return { errors }
+    }
+    const dbRole = role === 'both' ? ['poster', 'tasker'] : ['tasker']
+    const { error } = await supabase
+      .from('users')
+      .update({
+        full_name: parsed.data.full_name,
+        city: parsed.data.city,
+        ...(parsed.data.upi_id ? { upi_id: parsed.data.upi_id } : {}),
+        role: dbRole,
+      })
+      .eq('id', user.id)
+    if (error) return { errors: { _: error.message } }
   }
-
-  const { error } = await supabase
-    .from('users')
-    .update({
-      full_name: parsed.data.full_name,
-      city: parsed.data.city,
-      role: ['poster'],
-    })
-    .eq('id', user.id)
-
-  if (error) return { errors: { _: error.message } }
 
   redirect('/dashboard')
 }
 
-export async function completeTaskerOnboarding(
-  _prev: unknown,
-  formData: FormData
-): Promise<{ errors?: Record<string, string> }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { errors: { _: 'Not authenticated' } }
-
-  const skillsRaw = formData.get('skills') as string
-  const raw = {
-    full_name: formData.get('full_name') as string,
-    city: formData.get('city') as string,
-    skills: skillsRaw ? JSON.parse(skillsRaw) : [],
-    upi_id: formData.get('upi_id') as string,
-  }
-
-  const parsed = taskerSchema.safeParse(raw)
-  if (!parsed.success) {
-    const errors: Record<string, string> = {}
-    for (const [key, msgs] of Object.entries(parsed.error.flatten().fieldErrors)) {
-      errors[key] = msgs[0]
-    }
-    return { errors }
-  }
-
-  const { error } = await supabase
-    .from('users')
-    .update({
-      full_name: parsed.data.full_name,
-      city: parsed.data.city,
-      ...(parsed.data.upi_id ? { upi_id: parsed.data.upi_id } : {}),
-      role: ['tasker'],
-    })
-    .eq('id', user.id)
-
-  if (error) return { errors: { _: error.message } }
-
-  redirect('/dashboard')
-}
-
-export async function completeBothOnboarding(
-  _prev: unknown,
-  formData: FormData
-): Promise<{ errors?: Record<string, string> }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { errors: { _: 'Not authenticated' } }
-
-  const skillsRaw = formData.get('skills') as string
-  const raw = {
-    full_name: formData.get('full_name') as string,
-    city: formData.get('city') as string,
-    skills: skillsRaw ? JSON.parse(skillsRaw) : [],
-    upi_id: formData.get('upi_id') as string,
-  }
-
-  const parsed = taskerSchema.safeParse(raw)
-  if (!parsed.success) {
-    const errors: Record<string, string> = {}
-    for (const [key, msgs] of Object.entries(parsed.error.flatten().fieldErrors)) {
-      errors[key] = msgs[0]
-    }
-    return { errors }
-  }
-
-  const { error } = await supabase
-    .from('users')
-    .update({
-      full_name: parsed.data.full_name,
-      city: parsed.data.city,
-      ...(parsed.data.upi_id ? { upi_id: parsed.data.upi_id } : {}),
-      role: ['poster', 'tasker'],
-    })
-    .eq('id', user.id)
-
-  if (error) return { errors: { _: error.message } }
-
-  redirect('/dashboard')
-}
