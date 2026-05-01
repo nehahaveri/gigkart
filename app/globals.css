@@ -1,26 +1,91 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────
+   GigKart design tokens — Sand + Cyprus palette
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  /* Brand neutrals */
+  --color-sand: #F0EDE5;        /* page background — warm, paper */
+  --color-sand-50: #FBFAF6;     /* cards/surface — almost white but warm */
+  --color-sand-100: #F5F2EA;    /* subtle surface */
+  --color-sand-200: #E5E0D2;    /* subtle border */
+  --color-sand-300: #D4CCB8;
+  --color-sand-400: #B5AB94;
+  --color-sand-500: #948871;
+  --color-sand-600: #6D6451;
+  --color-sand-700: #4F4838;
+  --color-sand-800: #38332A;
+  --color-sand-900: #1F1C16;
+
+  /* Brand primary — Cyprus */
+  --color-cyprus-50:  #E6F0EE;
+  --color-cyprus-100: #BFD4D2;
+  --color-cyprus-200: #95B8B5;
+  --color-cyprus-300: #6A9C97;
+  --color-cyprus-400: #3D8580;
+  --color-cyprus-500: #006B65;
+  --color-cyprus-600: #005853;  /* default hover for primary */
+  --color-cyprus-700: #004643;  /* PRIMARY */
+  --color-cyprus-800: #003834;
+  --color-cyprus-900: #002824;
+
+  /* Accent — Clay/Terracotta for warmth + urgency */
+  --color-clay-50:  #FAEFEA;
+  --color-clay-100: #F4D9CD;
+  --color-clay-200: #E9B399;
+  --color-clay-300: #DC8C66;
+  --color-clay-400: #C75D3F;
+  --color-clay-500: #A94A30;
+  --color-clay-600: #8A3923;
+  --color-clay-700: #6B2A18;
+
+  /* Highlight — warm gold */
+  --color-gold-300: #E8C97A;
+  --color-gold-400: #D4A04C;
+  --color-gold-500: #B07F2C;
+
+  /* Functional colors retuned to palette */
+  --color-success-50:  #E8F1EE;
+  --color-success-500: #2F7A66;
+  --color-success-600: #245F50;
+
+  --color-danger-50:   #FBEBE7;
+  --color-danger-500:  #B73B22;
+  --color-danger-600:  #962E1A;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: var(--color-sand);
+  --foreground: #1A1A1A;
+  --font-display: var(--font-geist-sans), Georgia, serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
+html, body {
+  background: var(--color-sand);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom selection color */
+::selection {
+  background-color: var(--color-cyprus-700);
+  color: var(--color-sand);
+}
+
+/* Refined scrollbar (webkit) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-sand-100);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-sand-300);
+  border-radius: 999px;
+  border: 2px solid var(--color-sand-100);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-sand-400);
 }
