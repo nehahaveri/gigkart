@@ -56,6 +56,9 @@ export async function acceptOffer(offerId: string, jobId: string) {
     .eq('id', jobId)
 
   revalidatePath(`/my-jobs/${jobId}/offers`)
+  revalidatePath(`/job/${jobId}/active`)
+  revalidatePath('/my-work')
+  revalidatePath('/messages')
   return { success: true }
 }
 

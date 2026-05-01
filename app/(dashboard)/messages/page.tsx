@@ -29,13 +29,11 @@ export default async function MessagesPage() {
     .from('job_assignments')
     .select('job_id, job:jobs!job_assignments_job_id_fkey(id, title, status, poster:users!jobs_poster_id_fkey(id, full_name, avatar_url))')
     .eq('tasker_id', user.id)
-    .order('created_at', { ascending: false })
 
   // 2) All assignments on my posted jobs where I'm the poster
   const { data: myJobAssignments } = await supabase
     .from('job_assignments')
     .select('job_id, tasker:users!job_assignments_tasker_id_fkey(id, full_name, avatar_url), job:jobs!job_assignments_job_id_fkey(id, title, status, poster_id)')
-    .order('created_at', { ascending: false })
 
   const posterConvos = (myJobAssignments ?? []).filter((a) => {
     const j = a.job as unknown as { poster_id: string }

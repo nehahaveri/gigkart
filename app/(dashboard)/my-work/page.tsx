@@ -29,16 +29,16 @@ export default async function MyWorkPage() {
     .from('job_assignments')
     .select('*, job:jobs!job_assignments_job_id_fkey(id, title, category, budget, status, address)')
     .eq('tasker_id', user.id)
-    .order('started_at', { ascending: false })
+    .order('started_at', { ascending: false, nullsFirst: false })
 
   // Earnings
-  const { data: completed } = await supabase
+  const { data: completedAssignments } = await supabase
     .from('job_assignments')
     .select('job:jobs!job_assignments_job_id_fkey(budget)')
     .eq('tasker_id', user.id)
     .not('approved_at', 'is', null)
 
-  const totalEarnings = (completed ?? []).reduce((sum, a) => {
+  const totalEarnings = (completedAssignments ?? []).reduce((sum, a) => {
     const budget = (a.job as unknown as { budget: number })?.budget ?? 0
     return sum + budget * 0.9
   }, 0)

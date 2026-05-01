@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -98,6 +99,7 @@ export function OffersList({
 }) {
   const [sort, setSort] = useState<SortKey>('best')
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const router = useRouter()
 
   const sorted = sortOffers(offers, sort)
   const canAct = jobStatus === 'open'
@@ -110,6 +112,7 @@ export function OffersList({
       toast.error(result.error)
     } else {
       toast.success('Offer accepted! The tasker has been notified.')
+      router.refresh()
     }
   }
 
@@ -119,6 +122,8 @@ export function OffersList({
     setLoadingId(null)
     if (result.error) {
       toast.error(result.error)
+    } else {
+      router.refresh()
     }
   }
 

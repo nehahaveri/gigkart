@@ -1,12 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils/format'
-import { Clock, Users, Zap, ChevronRight, Plus, FileText, Briefcase } from 'lucide-react'
+import { Clock, Users, Zap, ChevronRight, Plus, FileText, Briefcase, Trash2, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { deleteJob } from './actions'
 import type { JobStatus } from '@/types'
 
 type JobRow = {
@@ -40,7 +43,23 @@ const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'destru
 
 export function MyJobsList({ jobs }: { jobs: JobRow[] }) {
   const [tab, setTab] = useState<JobStatus | 'all'>('all')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const router = useRouter()
   const filtered = tab === 'all' ? jobs : jobs.filter((j) => j.status === tab)
+
+  async function handleDelete(jobId: string) {
+    setDeletingId(jobId)
+    const result = await deleteJob(jobId)
+    setDeletingId(null)
+    setConfirmId(null)
+    if (result?.error) {
+      toast.error(result.error)
+    } else {
+      toast.success('Job deleted.')
+      router.refresh()
+    }
+  }
 
   return (
     <div>
@@ -93,45 +112,89 @@ export function MyJobsList({ jobs }: { jobs: JobRow[] }) {
         <div className="space-y-3">
           {filtered.map((job) => {
             const offerCount = job.offers?.[0]?.count ?? 0
+            const canDelete = job.status === 'open'
+            const isConfirming = confirmId === job.id
+            const isDeleting = deletingId === job.id
             return (
-              <Link key={job.id} href={`/my-jobs/${job.id}/offers`} className="block">
-                <div className="bg-white rounded-2xl border border-sand-200 p-4 flex items-center gap-3 hover:border-sand-300 hover:shadow-sm transition-all cursor-pointer">
-                  <div className="h-10 w-10 rounded-xl bg-sand-100 flex items-center justify-center shrink-0">
-                    <Briefcase className="h-5 w-5 text-sand-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                      <Badge variant={STATUS_VARIANT[job.status] ?? 'secondary'} className="text-[10px]">
-                        {job.status === 'open' ? 'Accepting offers' : job.status}
-                      </Badge>
-                      <span className="text-[11px] text-cyprus-700 bg-cyprus-50 px-2 py-0.5 rounded-full font-medium">
-                        {job.category}
-                      </span>
-                      {job.is_urgent && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
-                          <Zap className="h-2.5 w-2.5" />Urgent
+              <div key={job.id} className="space-y-0">
+                <Link href={`/my-jobs/${job.id}/offers`} className="block">
+                  <div className="bg-white rounded-2xl border border-sand-200 p-4 flex items-center gap-3 hover:border-sand-300 hover:shadow-sm transition-all cursor-pointer">
+                    <div className="h-10 w-10 rounded-xl bg-sand-100 flex items-center justify-center shrink-0">
+                      <Briefcase className="h-5 w-5 text-sand-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        <Badge variant={STATUS_VARIANT[job.status] ?? 'secondary'} className="text-[10px]">
+                          {job.status === 'open' ? 'Accepting offers' : job.status}
+                        </Badge>
+                        <span className="text-[11px] text-cyprus-700 bg-cyprus-50 px-2 py-0.5 rounded-full font-medium">
+                          {job.category}
                         </span>
-                      )}
+                        {job.is_urgent && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
+                            <Zap className="h-2.5 w-2.5" />Urgent
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-semibold text-sand-900 truncate text-sm">{job.title}</h3>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-sand-400">
+                        <span className="flex items-center gap-0.5">
+                          <Users className="h-3 w-3" />
+                          {offerCount} offer{offerCount !== 1 ? 's' : ''}
+                        </span>
+                        <span className="flex items-center gap-0.5">
+                          <Clock className="h-3 w-3" />
+                          {formatRelativeTime(job.created_at)}
+                        </span>
+                      </div>
                     </div>
-                    <h3 className="font-semibold text-sand-900 truncate text-sm">{job.title}</h3>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-sand-400">
-                      <span className="flex items-center gap-0.5">
-                        <Users className="h-3 w-3" />
-                        {offerCount} offer{offerCount !== 1 ? 's' : ''}
-                      </span>
-                      <span className="flex items-center gap-0.5">
-                        <Clock className="h-3 w-3" />
-                        {formatRelativeTime(job.created_at)}
-                      </span>
+                    <div className="shrink-0 text-right">
+                      <div className="font-bold text-sand-900 text-sm">{formatCurrency(job.budget)}</div>
+                      <div className="text-[10px] text-sand-400 capitalize">{job.budget_type}</div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-sand-300 shrink-0" />
+                  </div>
+                </Link>
+
+                {/* Delete row — only for open jobs */}
+                {canDelete && !isConfirming && (
+                  <div className="flex justify-end px-1 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmId(job.id)}
+                      className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-600 transition-colors"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Delete job
+                    </button>
+                  </div>
+                )}
+
+                {/* Confirm delete */}
+                {canDelete && isConfirming && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-center justify-between gap-3">
+                    <p className="text-xs text-red-700 font-medium">Permanently delete this job?</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmId(null)}
+                        className="text-xs text-sand-500 hover:text-sand-700 font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isDeleting}
+                        onClick={() => handleDelete(job.id)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-red-600 text-white text-xs font-semibold px-3 py-1.5 hover:bg-red-700 disabled:opacity-60 transition-colors"
+                      >
+                        {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                        Delete
+                      </button>
                     </div>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <div className="font-bold text-sand-900 text-sm">{formatCurrency(job.budget)}</div>
-                    <div className="text-[10px] text-sand-400 capitalize">{job.budget_type}</div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-sand-300 shrink-0" />
-                </div>
-              </Link>
+                )}
+              </div>
             )
           })}
         </div>

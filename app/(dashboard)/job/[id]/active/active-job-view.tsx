@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency } from '@/lib/utils/format'
 import {
-  CheckCircle, Circle, Upload, Camera, Loader2, MessageCircle,
+  CheckCircle, Circle, Upload, Camera, Loader2, MessageCircle, AlertTriangle,
 } from 'lucide-react'
-import { startJob, submitProof } from './actions'
+import { startJob, submitProof, cancelJob, abandonJob } from './actions'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import type { Job, JobAssignment, User } from '@/types'
@@ -44,7 +44,7 @@ export function ActiveJobView({
 }) {
   const [assignment, setAssignment] = useState(initialAssignment)
   const [loading, setLoading] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const progress = getProgress(assignment)
 
   // Real-time subscription
@@ -65,17 +65,14 @@ export function ActiveJobView({
         }
       )
       .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => { supabase.removeChannel(channel) }
   }, [assignment.id])
 
   async function handleStart() {
     setLoading(true)
     const result = await startJob(assignment.id, job.id)
     setLoading(false)
-    if (result.error) toast.error(result.error)
+    if (result?.error) toast.error(result.error)
     else toast.success('Job started! The poster has been notified.')
   }
 
@@ -85,15 +82,57 @@ export function ActiveJobView({
     const formData = new FormData(e.currentTarget)
     const result = await submitProof(assignment.id, job.id, formData)
     setLoading(false)
-    if (result.error) toast.error(result.error)
+    if (result?.error) toast.error(result.error)
     else toast.success('Proof submitted! Waiting for poster approval.')
   }
 
+  async function handleCancel() {
+    setLoading(true)
+    const result = await cancelJob(job.id)
+    setLoading(false)
+    if (result?.error) toast.error(result.error)
+    else toast.success('Job cancelled.')
+  }
+
+  async function handleAbandon() {
+    setLoading(true)
+    await abandonJob(assignment.id, job.id)
+    // abandonJob redirects, no need to handle success here
+  }
+
+  const isCancelled = job.status === 'cancelled'
+  const isCompleted = !!assignment.approved_at
+  const canCancel = !isCancelled && !isCompleted && !assignment.submitted_at
+
   return (
     <div className="space-y-6">
+      {/* Accepted banner for tasker (shown when just accepted, not yet started) */}
+      {!isPoster && !assignment.started_at && !isCancelled && (
+        <div className="rounded-2xl bg-cyprus-50 border border-cyprus-200 p-4 flex items-start gap-3">
+          <CheckCircle className="h-5 w-5 text-cyprus-700 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-cyprus-800">Your offer was accepted!</p>
+            <p className="text-xs text-cyprus-600 mt-0.5">
+              Get in touch with the poster and mark the job as started when you begin.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Cancelled state */}
+      {isCancelled && (
+        <div className="rounded-2xl bg-red-50 border border-red-200 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-red-700">This job has been cancelled</p>
+            <p className="text-xs text-red-500 mt-0.5">No further action is needed.</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div>
-        <Badge variant={job.status === 'completed' ? 'success' : 'warning'}>
+        <Badge variant={isCompleted ? 'success' : isCancelled ? 'destructive' : 'warning'}>
           {job.status}
         </Badge>
         <h1 className="text-2xl font-bold text-sand-900 mt-2">{job.title}</h1>
@@ -124,41 +163,57 @@ export function ActiveJobView({
         </CardContent>
       </Card>
 
-      {/* Progress tracker */}
-      <Card>
-        <CardContent className="p-5">
-          <h2 className="font-semibold text-sand-900 mb-4">Progress</h2>
-          <div className="space-y-3">
-            {PROGRESS_STEPS.map((step, i) => {
-              const done = i <= progress
-              const current = i === progress
-              return (
-                <div key={step.key} className="flex items-center gap-3">
-                  {done ? (
-                    <CheckCircle className={cn('h-5 w-5 shrink-0', current ? 'text-cyprus-700' : 'text-success-500')} />
-                  ) : (
-                    <Circle className="h-5 w-5 shrink-0 text-sand-200" />
-                  )}
-                  <span
-                    className={cn(
-                      'text-sm font-medium',
-                      done ? 'text-sand-900' : 'text-sand-500'
-                    )}
-                  >
-                    {step.label}
-                  </span>
-                  {current && (
-                    <Badge variant="default" className="ml-auto text-xs">Current</Badge>
-                  )}
-                </div>
-              )
-            })}
+      {/* Message button — visible to both sides */}
+      {otherUser?.id && !isCancelled && (
+        <Link
+          href={`/messages/${job.id}`}
+          className="flex items-center gap-3 w-full rounded-2xl border border-cyprus-200 bg-cyprus-50 px-4 py-3.5 hover:bg-cyprus-100 transition-colors"
+        >
+          <div className="h-9 w-9 rounded-full bg-cyprus-700 flex items-center justify-center shrink-0">
+            <MessageCircle className="h-4 w-4 text-white" />
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-cyprus-800">
+              Message {otherUser.full_name?.split(' ')[0] ?? (isPoster ? 'Tasker' : 'Poster')}
+            </div>
+            <div className="text-xs text-cyprus-600">Open full conversation</div>
+          </div>
+          <CheckCircle className="h-4 w-4 text-cyprus-400 shrink-0" />
+        </Link>
+      )}
+
+      {/* Progress tracker */}
+      {!isCancelled && (
+        <Card>
+          <CardContent className="p-5">
+            <h2 className="font-semibold text-sand-900 mb-4">Progress</h2>
+            <div className="space-y-3">
+              {PROGRESS_STEPS.map((step, i) => {
+                const done = i <= progress
+                const current = i === progress && !isCompleted
+                return (
+                  <div key={step.key} className="flex items-center gap-3">
+                    {done ? (
+                      <CheckCircle className={cn('h-5 w-5 shrink-0', current ? 'text-cyprus-700' : 'text-success-500')} />
+                    ) : (
+                      <Circle className="h-5 w-5 shrink-0 text-sand-200" />
+                    )}
+                    <span className={cn('text-sm font-medium', done ? 'text-sand-900' : 'text-sand-500')}>
+                      {step.label}
+                    </span>
+                    {current && (
+                      <Badge variant="default" className="ml-auto text-xs">Current</Badge>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tasker actions */}
-      {!isPoster && (
+      {!isPoster && !isCancelled && (
         <div className="space-y-4">
           {/* Start job */}
           {!assignment.started_at && (
@@ -181,7 +236,6 @@ export function ActiveJobView({
                       <Camera className="h-6 w-6 text-sand-500" />
                       <span className="text-sm text-sand-500">Tap to upload proof</span>
                       <input
-                        ref={fileRef}
                         type="file"
                         name="proof_photos"
                         accept="image/*,video/mp4"
@@ -194,10 +248,7 @@ export function ActiveJobView({
                     {loading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <>
-                        <Upload className="h-4 w-4" />
-                        Submit & Mark Complete
-                      </>
+                      <><Upload className="h-4 w-4" />Submit & Mark Complete</>
                     )}
                   </Button>
                 </form>
@@ -213,10 +264,9 @@ export function ActiveJobView({
         </div>
       )}
 
-      {/* Poster actions */}
-      {isPoster && assignment.submitted_at && !assignment.approved_at && (
+      {/* Poster actions — approve/dispute after proof submitted */}
+      {isPoster && assignment.submitted_at && !assignment.approved_at && !isCancelled && (
         <div className="space-y-4">
-          {/* Proof photos */}
           {assignment.proof_photos?.length > 0 && (
             <Card>
               <CardContent className="p-5">
@@ -234,7 +284,6 @@ export function ActiveJobView({
               </CardContent>
             </Card>
           )}
-
           <div className="flex gap-3">
             <Button className="flex-1" asChild>
               <a href={`/job/${job.id}/review`}>Approve & Release Payment</a>
@@ -247,7 +296,7 @@ export function ActiveJobView({
       )}
 
       {/* Completed */}
-      {assignment.approved_at && (
+      {isCompleted && (
         <div className="rounded-xl bg-success-50 border border-success-200 p-4 text-sm text-success-700 text-center">
           <CheckCircle className="h-5 w-5 mx-auto mb-2" />
           Job completed and payment released!
@@ -257,24 +306,51 @@ export function ActiveJobView({
         </div>
       )}
 
-      {/* Full-page messaging */}
-      {otherUser?.id && (
-        <Link
-          href={`/messages/${job.id}`}
-          className="flex items-center gap-3 w-full rounded-2xl border border-cyprus-200 bg-cyprus-50 px-4 py-3.5 hover:bg-cyprus-100 transition-colors"
-        >
-          <div className="h-9 w-9 rounded-full bg-cyprus-700 flex items-center justify-center shrink-0">
-            <MessageCircle className="h-4 w-4 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-cyprus-800">
-              Message {otherUser.full_name?.split(' ')[0] ?? (isPoster ? 'Tasker' : 'Poster')}
+      {/* Cancel / Withdraw section */}
+      {canCancel && (
+        <div className="pt-2 border-t border-sand-100">
+          {!showCancelConfirm ? (
+            <button
+              type="button"
+              onClick={() => setShowCancelConfirm(true)}
+              className="text-xs text-red-400 hover:text-red-600 transition-colors"
+            >
+              {isPoster ? 'Cancel this job' : 'Withdraw from this job'}
+            </button>
+          ) : (
+            <div className="rounded-xl bg-red-50 border border-red-200 p-4 space-y-3">
+              <p className="text-sm font-semibold text-red-700">
+                {isPoster
+                  ? 'Are you sure you want to cancel this job?'
+                  : 'Are you sure you want to withdraw?'}
+              </p>
+              <p className="text-xs text-red-500">
+                {isPoster
+                  ? 'The tasker will be notified. This cannot be undone.'
+                  : 'The job will be reopened for other taskers. This cannot be undone.'}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={loading}
+                  onClick={isPoster ? handleCancel : handleAbandon}
+                >
+                  {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Yes, confirm'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCancelConfirm(false)}
+                >
+                  Keep it
+                </Button>
+              </div>
             </div>
-            <div className="text-xs text-cyprus-600">Open full conversation + profile</div>
-          </div>
-          <CheckCircle className="h-4 w-4 text-cyprus-400 shrink-0" />
-        </Link>
+          )}
+        </div>
       )}
     </div>
   )
 }
+

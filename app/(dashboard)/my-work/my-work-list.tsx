@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency } from '@/lib/utils/format'
-import { ChevronRight, MapPin, Briefcase, Search, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { ChevronRight, MapPin, Briefcase, Search, CheckCircle2, XCircle, Clock, CheckCircle, MessageCircle } from 'lucide-react'
 
 type Tab = 'applied' | 'active' | 'completed' | 'cancelled'
 
@@ -37,6 +37,7 @@ type AssignmentRow = {
   started_at: string | null
   submitted_at: string | null
   approved_at: string | null
+  offer_id: string
   job: {
     id: string
     title: string
@@ -57,7 +58,9 @@ export function MyWorkList({
 }) {
   const [tab, setTab] = useState<Tab>('applied')
 
-  const applied = offers.filter((o) => o.status === 'pending')
+  const pending = offers.filter((o) => o.status === 'pending')
+  const accepted = offers.filter((o) => o.status === 'accepted')
+  const applied = [...pending, ...accepted]
   const active = assignments.filter((a) => !a.approved_at)
   const completed = assignments.filter((a) => a.approved_at)
   const cancelled = offers.filter((o) => o.status === 'rejected' || o.status === 'withdrawn')
@@ -69,7 +72,7 @@ export function MyWorkList({
     cancelled
 
   const counts = {
-    applied: applied.length,
+    applied: pending.length + accepted.length,
     active: active.length,
     completed: completed.length,
     cancelled: cancelled.length,
@@ -121,9 +124,51 @@ export function MyWorkList({
           {items.map((item) => {
             const job = 'job' in item ? (item as OfferRow | AssignmentRow).job : null
             if (!job) return null
-            const isAssignment = 'started_at' in item
-            const href = isAssignment ? `/job/${job.id}/active` : `/jobs/${job.id}`
+            const isAssignment = 'offer_id' in item
+            const isAccepted = !isAssignment && (item as OfferRow).status === 'accepted'
+            const href = isAssignment ? `/job/${job.id}/active` : (isAccepted ? `/job/${job.id}/active` : `/jobs/${job.id}`)
             const priceAmount = !isAssignment ? (item as OfferRow).price : job.budget * 0.9
+
+            // Accepted offer — special card with CTAs
+            if (isAccepted) {
+              return (
+                <div key={item.id} className="rounded-2xl border-2 border-cyprus-200 bg-cyprus-50 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-cyprus-100 flex items-center justify-center shrink-0">
+                      <CheckCircle className="h-5 w-5 text-cyprus-700" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <span className="text-[11px] text-cyprus-700 bg-cyprus-100 px-2 py-0.5 rounded-full font-medium">
+                          {job.category}
+                        </span>
+                        <Badge variant="success" className="text-[10px]">Offer accepted!</Badge>
+                      </div>
+                      <h3 className="font-semibold text-sand-900 text-sm truncate">{job.title}</h3>
+                      <p className="text-xs text-cyprus-600 mt-0.5">
+                        Your offer of {formatCurrency(priceAmount)} was accepted. Get started!
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/job/${job.id}/active`}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-cyprus-700 text-white text-xs font-semibold px-3 py-2 hover:bg-cyprus-800 transition-colors"
+                    >
+                      <Briefcase className="h-3.5 w-3.5" />
+                      View Active Job
+                    </Link>
+                    <Link
+                      href={`/messages/${job.id}`}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyprus-300 bg-white text-cyprus-700 text-xs font-semibold px-3 py-2 hover:bg-cyprus-50 transition-colors"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      Message Poster
+                    </Link>
+                  </div>
+                </div>
+              )
+            }
 
             return (
               <Link key={item.id} href={href} className="block">
@@ -138,7 +183,7 @@ export function MyWorkList({
                       </span>
                       {!isAssignment && (
                         <Badge variant="secondary" className="text-[10px]">
-                          {(item as OfferRow).status === 'pending' ? 'Awaiting response' : (item as OfferRow).status}
+                          Awaiting response
                         </Badge>
                       )}
                       {isAssignment && (item as AssignmentRow).submitted_at && !(item as AssignmentRow).approved_at && (

@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 
 export async function startJob(assignmentId: string, jobId: string) {
   const supabase = await createClient()
@@ -10,12 +11,13 @@ export async function startJob(assignmentId: string, jobId: string) {
   } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
-  await supabase
+  const { error } = await supabase
     .from('job_assignments')
     .update({ started_at: new Date().toISOString() })
     .eq('id', assignmentId)
     .eq('tasker_id', user.id)
 
+  if (error) return { error: error.message }
   revalidatePath(`/job/${jobId}/active`)
   return { success: true }
 }
@@ -47,7 +49,7 @@ export async function submitProof(
     }
   }
 
-  await supabase
+  const { error } = await supabase
     .from('job_assignments')
     .update({
       submitted_at: new Date().toISOString(),
@@ -56,6 +58,78 @@ export async function submitProof(
     .eq('id', assignmentId)
     .eq('tasker_id', user.id)
 
+  if (error) return { error: error.message }
   revalidatePath(`/job/${jobId}/active`)
   return { success: true }
+}
+
+/** Poster cancels a job (only if proof hasn't been submitted yet) */
+export async function cancelJob(jobId: string) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data: assignment } = await supabase
+    .from('job_assignments')
+    .select('submitted_at')
+    .eq('job_id', jobId)
+    .maybeSingle()
+
+  if (assignment?.submitted_at) {
+    return { error: 'Cannot cancel after tasker has submitted proof. Raise a dispute instead.' }
+  }
+
+  const { error } = await supabase
+    .from('jobs')
+    .update({ status: 'cancelled' })
+    .eq('id', jobId)
+    .eq('poster_id', user.id)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/job/${jobId}/active`)
+  revalidatePath('/my-jobs')
+  return { success: true }
+}
+
+/** Tasker withdraws from an active job (only if proof hasn't been submitted) */
+export async function abandonJob(assignmentId: string, jobId: string) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data: assignment } = await supabase
+    .from('job_assignments')
+    .select('submitted_at')
+    .eq('id', assignmentId)
+    .eq('tasker_id', user.id)
+    .single()
+
+  if (!assignment) return { error: 'Assignment not found' }
+  if (assignment.submitted_at) {
+    return { error: 'Cannot withdraw after submitting proof' }
+  }
+
+  await supabase
+    .from('job_assignments')
+    .delete()
+    .eq('id', assignmentId)
+    .eq('tasker_id', user.id)
+
+  await supabase
+    .from('jobs')
+    .update({ status: 'open' })
+    .eq('id', jobId)
+
+  await supabase
+    .from('offers')
+    .update({ status: 'pending' })
+    .eq('job_id', jobId)
+    .eq('tasker_id', user.id)
+
+  revalidatePath('/my-work')
+  redirect('/my-work')
 }
