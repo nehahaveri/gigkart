@@ -6,9 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils/format'
-import { Star, CheckCircle, Shield, Loader2, AlertTriangle, Award, TrendingUp } from 'lucide-react'
+import { Star, CheckCircle, Shield, Loader2, AlertTriangle, Award, TrendingUp, MessageCircle } from 'lucide-react'
 import { acceptOffer, rejectOffer } from './actions'
 import { toast } from 'sonner'
+import Link from 'next/link'
 import type { User, OfferStatus } from '@/types'
 
 type OfferRow = {
@@ -271,6 +272,25 @@ export function OffersList({
                       <Button size="sm" variant="ghost" asChild>
                         <a href={`/profile/${tasker?.id}`}>View profile</a>
                       </Button>
+                    </div>
+                  )}
+
+                  {/* Message tasker after acceptance */}
+                  {offer.status === 'accepted' && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <Link
+                        href={`/messages/${offer.job_id}`}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-cyprus-700 text-white text-xs font-semibold px-3 py-2 hover:bg-cyprus-800 transition-colors"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        Message Tasker
+                      </Link>
+                      <Link
+                        href={`/job/${offer.job_id}/active`}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-sand-200 text-sand-700 text-xs font-semibold px-3 py-2 hover:bg-sand-50 transition-colors"
+                      >
+                        View Active Job →
+                      </Link>
                     </div>
                   )}
                 </div>

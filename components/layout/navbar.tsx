@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Briefcase, Search, Plus, User, LayoutDashboard, Wrench } from 'lucide-react'
+import { Briefcase, Search, Plus, User, LayoutDashboard, Wrench, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { Button } from '@/components/ui/button'
 
@@ -10,15 +10,16 @@ const NAV_LINKS = [
   { href: '/jobs',      label: 'Browse Gigs',  exact: false },
   { href: '/my-jobs',   label: 'My Postings',  exact: false },
   { href: '/my-work',   label: 'My Gigs',      exact: false },
+  { href: '/messages',  label: 'Messages',     exact: false },
   { href: '/dashboard', label: 'Home',          exact: false },
 ]
 
 const MOBILE_NAV = [
   { href: '/jobs',       label: 'Browse',    icon: Search },
   { href: '/my-jobs',    label: 'Postings',  icon: Briefcase },
+  { href: '/messages',   label: 'Messages',  icon: MessageCircle },
   { href: '/my-work',    label: 'My Gigs',   icon: Wrench },
   { href: '/dashboard',  label: 'Home',      icon: LayoutDashboard },
-  { href: '/profile/me', label: 'Profile',   icon: User },
 ]
 
 export function Navbar() {

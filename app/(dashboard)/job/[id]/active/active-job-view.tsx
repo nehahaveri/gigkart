@@ -8,11 +8,11 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency } from '@/lib/utils/format'
 import {
-  CheckCircle, Circle, Upload, Camera, Loader2,
+  CheckCircle, Circle, Upload, Camera, Loader2, MessageCircle,
 } from 'lucide-react'
 import { startJob, submitProof } from './actions'
 import { toast } from 'sonner'
-import { JobChat } from '@/components/jobs/job-chat'
+import Link from 'next/link'
 import type { Job, JobAssignment, User } from '@/types'
 
 const PROGRESS_STEPS = [
@@ -257,13 +257,23 @@ export function ActiveJobView({
         </div>
       )}
 
-      {/* Floating real-time chat with the other party */}
-      {otherUser?.id && otherUser.full_name && (
-        <JobChat
-          jobId={job.id}
-          currentUserId={currentUserId}
-          otherName={otherUser.full_name}
-        />
+      {/* Full-page messaging */}
+      {otherUser?.id && (
+        <Link
+          href={`/messages/${job.id}`}
+          className="flex items-center gap-3 w-full rounded-2xl border border-cyprus-200 bg-cyprus-50 px-4 py-3.5 hover:bg-cyprus-100 transition-colors"
+        >
+          <div className="h-9 w-9 rounded-full bg-cyprus-700 flex items-center justify-center shrink-0">
+            <MessageCircle className="h-4 w-4 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-cyprus-800">
+              Message {otherUser.full_name?.split(' ')[0] ?? (isPoster ? 'Tasker' : 'Poster')}
+            </div>
+            <div className="text-xs text-cyprus-600">Open full conversation + profile</div>
+          </div>
+          <CheckCircle className="h-4 w-4 text-cyprus-400 shrink-0" />
+        </Link>
       )}
     </div>
   )
