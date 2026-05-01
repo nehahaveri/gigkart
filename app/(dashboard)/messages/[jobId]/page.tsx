@@ -2,8 +2,12 @@ import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
 import { MessagesLayout } from './messages-layout'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 import type { User } from '@/types'
+
+// Fields that actually exist in the users table schema
+const USER_FIELDS = 'id, full_name, avatar_url, phone, email, aadhaar_verified, rating_avg, rating_count, completion_rate, city, created_at, upi_id'
 
 interface Props {
   params: Promise<{ jobId: string }>
@@ -24,18 +28,18 @@ export default async function MessagePage({ params }: Props) {
   if (!user) redirect('/login')
 
   // Fetch job + poster
-  const { data: job } = await supabase
+  const { data: job, error: jobError } = await supabase
     .from('jobs')
-    .select('id, title, status, poster_id, poster:users!jobs_poster_id_fkey(id, full_name, avatar_url, phone, email, aadhaar_verified, rating_avg, rating_count, completion_rate, city, created_at, upi_id, bank_account, role)')
+    .select(`id, title, status, poster_id, poster:users!jobs_poster_id_fkey(${USER_FIELDS})`)
     .eq('id', jobId)
     .single()
 
-  if (!job) notFound()
+  if (jobError || !job) notFound()
 
   // Fetch assignment (tasker)
   const { data: assignment } = await supabase
     .from('job_assignments')
-    .select('tasker_id, tasker:users!job_assignments_tasker_id_fkey(id, full_name, avatar_url, phone, email, aadhaar_verified, rating_avg, rating_count, completion_rate, city, created_at, upi_id, bank_account, role)')
+    .select(`tasker_id, tasker:users!job_assignments_tasker_id_fkey(${USER_FIELDS})`)
     .eq('job_id', jobId)
     .maybeSingle()
 
@@ -46,13 +50,38 @@ export default async function MessagePage({ params }: Props) {
   // Access control: must be poster OR assigned tasker
   if (!isPoster && !isTasker) redirect('/messages')
 
-  // If tasker side but no assignment yet, not ready
-  if (!assignment && isTasker) redirect('/messages')
-
   const poster = job.poster as unknown as Partial<User>
   const tasker = assignment?.tasker as unknown as Partial<User> | undefined
 
-  // The "other" user depends on who we are
+  // Poster with no accepted offer yet — show a waiting state instead of 404
+  if (isPoster && !assignment) {
+    return (
+      <>
+        <Navbar />
+        <div className="mx-auto max-w-lg px-4 py-16 text-center">
+          <div className="h-14 w-14 rounded-full bg-sand-100 flex items-center justify-center mx-auto mb-4">
+            <svg className="h-7 w-7 text-sand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </div>
+          <h1 className="text-lg font-bold text-sand-900 mb-2">No conversation yet</h1>
+          <p className="text-sm text-sand-500 mb-6">
+            Messaging unlocks once you accept an offer for <span className="font-medium text-sand-700">{job.title}</span>.
+          </p>
+          <Link
+            href={`/my-jobs/${jobId}/offers`}
+            className="inline-flex items-center gap-2 rounded-xl bg-cyprus-700 text-white text-sm font-semibold px-5 py-2.5 hover:bg-cyprus-800 transition-colors"
+          >
+            View Offers →
+          </Link>
+        </div>
+      </>
+    )
+  }
+
+  // Tasker with no assignment — shouldn't happen but guard anyway
+  if (!assignment) redirect('/messages')
+
   const otherUser = isPoster ? tasker : poster
   if (!otherUser) notFound()
 
