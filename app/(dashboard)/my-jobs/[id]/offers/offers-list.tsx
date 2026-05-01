@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils/format'
-import { Star, CheckCircle, Shield, Loader2 } from 'lucide-react'
+import { Star, CheckCircle, Shield, Loader2, AlertTriangle, Award, TrendingUp } from 'lucide-react'
 import { acceptOffer, rejectOffer } from './actions'
 import { toast } from 'sonner'
 import type { User, OfferStatus } from '@/types'
@@ -24,6 +24,41 @@ type OfferRow = {
 }
 
 type SortKey = 'best' | 'lowest' | 'highest_rated' | 'newest'
+
+type TrustTier = 'pro' | 'trusted' | 'new' | 'caution'
+
+function getTrustTier(tasker: User): TrustTier {
+  const jobs = tasker?.rating_count ?? 0
+  const rate = tasker?.completion_rate ?? 0
+  const verified = tasker?.aadhaar_verified ?? false
+  if (verified && jobs >= 5 && rate >= 80) return 'pro'
+  if (verified && jobs >= 1) return 'trusted'
+  if (!verified && jobs === 0) return 'caution'
+  return 'new'
+}
+
+const TRUST_META: Record<TrustTier, { label: string; icon: React.ReactNode; className: string }> = {
+  pro: {
+    label: 'Pro',
+    icon: <Award className="h-3 w-3" />,
+    className: 'bg-cyprus-700 text-white',
+  },
+  trusted: {
+    label: 'Trusted',
+    icon: <Shield className="h-3 w-3" />,
+    className: 'bg-success-100 text-success-700',
+  },
+  new: {
+    label: 'New',
+    icon: <TrendingUp className="h-3 w-3" />,
+    className: 'bg-sand-100 text-sand-600',
+  },
+  caution: {
+    label: 'Unverified',
+    icon: <AlertTriangle className="h-3 w-3" />,
+    className: 'bg-amber-100 text-amber-700',
+  },
+}
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'best', label: 'Best match' },
@@ -115,6 +150,14 @@ export function OffersList({
         ))}
       </div>
 
+      {/* Trust legend */}
+      <div className="rounded-xl border border-sand-200 bg-sand-50 p-3 text-xs text-sand-600 flex flex-wrap gap-3">
+        <span className="font-semibold text-sand-700 shrink-0">Trust signals:</span>
+        <span className="flex items-center gap-1"><span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-cyprus-700 text-white text-[10px] font-medium"><Award className="h-3 w-3" />Pro</span> ID-verified, 5+ jobs, ≥80% completion</span>
+        <span className="flex items-center gap-1"><span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-success-100 text-success-700 text-[10px] font-medium"><Shield className="h-3 w-3" />Trusted</span> ID-verified, has reviews</span>
+        <span className="flex items-center gap-1"><span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium"><AlertTriangle className="h-3 w-3" />Unverified</span> No ID, no reviews yet</span>
+      </div>
+
       {/* Offer cards */}
       {sorted.map((offer) => {
         const tasker = offer.tasker
@@ -139,9 +182,22 @@ export function OffersList({
                     >
                       {tasker?.full_name ?? 'Anonymous'}
                     </a>
+                    {/* Trust tier badge */}
+                    {(() => {
+                      const tier = getTrustTier(tasker)
+                      const meta = TRUST_META[tier]
+                      return (
+                        <span className={cn(
+                          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
+                          meta.className
+                        )}>
+                          {meta.icon}{meta.label}
+                        </span>
+                      )
+                    })()}
                     {tasker?.aadhaar_verified && (
                       <Badge variant="success">
-                        <Shield className="h-3 w-3 mr-0.5" />Verified
+                        <Shield className="h-3 w-3 mr-0.5" />ID Verified
                       </Badge>
                     )}
                     <Badge variant={offer.status === 'accepted' ? 'success' : offer.status === 'rejected' ? 'destructive' : 'secondary'}>
@@ -149,22 +205,32 @@ export function OffersList({
                     </Badge>
                   </div>
 
-                  <div className="flex items-center gap-3 mt-1 text-sm text-sand-500">
-                    {tasker?.rating_avg > 0 && (
+                  <div className="flex items-center gap-3 mt-1 text-sm text-sand-500 flex-wrap">
+                    {tasker?.rating_avg > 0 ? (
                       <span className="flex items-center gap-0.5">
                         <Star className="h-3 w-3 text-clay-400 fill-clay-400" />
-                        {Number(tasker.rating_avg).toFixed(1)}
-                        <span className="text-sand-500">({tasker.rating_count})</span>
+                        <span className="font-medium text-sand-700">{Number(tasker.rating_avg).toFixed(1)}</span>
+                        <span>· {tasker.rating_count} review{tasker.rating_count !== 1 ? 's' : ''}</span>
                       </span>
+                    ) : (
+                      <span className="text-sand-400 text-xs">No reviews yet</span>
                     )}
                     {tasker?.completion_rate > 0 && (
                       <span className="flex items-center gap-0.5">
-                        <CheckCircle className="h-3 w-3" />
-                        {Number(tasker.completion_rate).toFixed(0)}% done
+                        <CheckCircle className="h-3 w-3 text-success-500" />
+                        <span>{Number(tasker.completion_rate).toFixed(0)}% done</span>
                       </span>
                     )}
                     {tasker?.city && <span>· {tasker.city}</span>}
                   </div>
+
+                  {/* Caution warning for brand-new unverified */}
+                  {getTrustTier(tasker) === 'caution' && (
+                    <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 p-2 text-xs text-amber-700">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>This tasker has no ID verification and no completed jobs. Review their offer carefully before accepting.</span>
+                    </div>
+                  )}
 
                   {/* Price */}
                   <div className="mt-3 text-lg font-bold text-sand-900">

@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency } from '@/lib/utils/format'
 import {
-  CheckCircle, Circle, Upload, Camera, Loader2, MessageCircle,
+  CheckCircle, Circle, Upload, Camera, Loader2,
 } from 'lucide-react'
 import { startJob, submitProof } from './actions'
 import { toast } from 'sonner'
+import { JobChat } from '@/components/jobs/job-chat'
 import type { Job, JobAssignment, User } from '@/types'
 
 const PROGRESS_STEPS = [
@@ -33,7 +34,7 @@ export function ActiveJobView({
   assignment: initialAssignment,
   isPoster,
   otherUser,
-  currentUserId: _currentUserId,
+  currentUserId,
 }: {
   job: Job
   assignment: JobAssignment
@@ -114,10 +115,12 @@ export function ActiveJobView({
               {otherUser?.city && ` · ${otherUser.city}`}
             </div>
           </div>
-          <Button size="sm" variant="outline" className="gap-1.5">
-            <MessageCircle className="h-3 w-3" />
-            Chat
-          </Button>
+          <a
+            href={`/profile/${otherUser?.id}`}
+            className="text-xs text-cyprus-700 font-medium hover:underline"
+          >
+            View profile
+          </a>
         </CardContent>
       </Card>
 
@@ -245,13 +248,22 @@ export function ActiveJobView({
 
       {/* Completed */}
       {assignment.approved_at && (
-        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-700 text-center">
+        <div className="rounded-xl bg-success-50 border border-success-200 p-4 text-sm text-success-700 text-center">
           <CheckCircle className="h-5 w-5 mx-auto mb-2" />
           Job completed and payment released!
-          <a href={`/rate/${job.id}`} className="block mt-2 font-medium text-emerald-800 underline">
+          <a href={`/rate/${job.id}`} className="block mt-2 font-medium text-success-800 underline">
             Leave a review
           </a>
         </div>
+      )}
+
+      {/* Floating real-time chat with the other party */}
+      {otherUser?.id && otherUser.full_name && (
+        <JobChat
+          jobId={job.id}
+          currentUserId={currentUserId}
+          otherName={otherUser.full_name}
+        />
       )}
     </div>
   )
