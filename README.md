@@ -60,35 +60,30 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml down
 
 > **Best for:** active development, testing payments/OTP with real keys.
 
-**Prerequisites:** Node.js 20+, a [Supabase](https://supabase.com) project
+**Prerequisites:** Node.js 20+, PostgreSQL 15+ with PostGIS extension
 
 **1. Install dependencies**
 ```bash
 npm install
 ```
 
-**2. Configure environment variables**
+**2. Apply the database schema**
 ```bash
-cp .env.local.example .env.local
+psql -U postgres -d gigkart -f db/schema.sql
 ```
 
-Fill in `.env.local` with your keys:
+**3. Configure environment variables**
 
-| Variable | Where to get it |
+Edit `.env.local` with your values:
+
+| Variable | Description |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project → Settings → API |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase project → Settings → API |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase project → Settings → API |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `AUTH_SECRET` | Random 32+ char string for JWT signing (`openssl rand -base64 32`) |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay Dashboard → Settings → API Keys |
 | `NEXT_PUBLIC_RAZORPAY_KEY_ID` | Same as `RAZORPAY_KEY_ID` |
 | `MSG91_AUTH_KEY` | MSG91 Dashboard → API |
 | `NEXT_PUBLIC_GOOGLE_MAPS_KEY` | Google Cloud Console → Maps JS API |
-
-**3. Run database migrations**
-```bash
-supabase db push
-```
-Or apply the files in `supabase/migrations/` manually in order against your Supabase project.
 
 **4. Start the dev server**
 ```bash
@@ -124,11 +119,13 @@ components/
 └── payment/         # EscrowCheckout
 
 lib/
-├── supabase/        # Server + client + middleware helpers
-├── razorpay/        # Razorpay Node SDK wrapper
+├── auth/            # JWT session (create/verify/destroy)
+├── db/              # node-postgres pool + query helpers
+├── middleware/      # Edge route guard (proxy.ts)
+├── payments/        # Razorpay SDK wrapper
 └── utils/           # cn(), formatters
 
-supabase/migrations/ # All SQL schema files (apply in order)
+db/schema.sql        # Master PostgreSQL schema (apply once)
 types/index.ts       # Shared TypeScript interfaces
 ```
 

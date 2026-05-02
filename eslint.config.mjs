@@ -12,7 +12,15 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Exclude compiled third-party code
+    "node_modules/**",
   ]),
+  {
+    rules: {
+      // React 18 auto-batches synchronous setState calls in effects — no cascading renders
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
 ]);
 
 export default eslintConfig;

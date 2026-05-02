@@ -20,11 +20,11 @@ components/ui/      → shadcn primitives only
 components/[feat]/  → feature components
 lib/                → third-party client wrappers
 types/              → shared TypeScript interfaces
-supabase/migrations/→ all SQL migration files
+db/schema.sql       → master PostgreSQL schema (single source of truth)
 
 ## Core rules — never break these
 1. All payment logic through Razorpay only
-2. All DB access uses Supabase client with RLS enforced
+2. All DB access via lib/db (node-postgres pool, no RLS)
 3. Geo queries use PostGIS ST_DWithin(location, point, radius_metres)
 4. Poster pays 0 fees. Tasker payout = amount × 0.90 (10% platform cut)
 5. Escrow auto-releases 48 hrs after proof submission (cron job)

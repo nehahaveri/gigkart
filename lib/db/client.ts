@@ -7,7 +7,6 @@ import { Pool } from 'pg'
 
 // Singleton pool — reused across hot-reloads in dev
 declare global {
-  // eslint-disable-next-line no-var
   var __pgPool: Pool | undefined
 }
 
