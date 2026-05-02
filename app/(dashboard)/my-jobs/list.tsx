@@ -131,8 +131,8 @@ export function MyJobsList({ jobs }: { jobs: JobRow[] }) {
                           {job.category}
                         </span>
                         {job.is_urgent && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
-                            <Zap className="h-2.5 w-2.5" />Urgent
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-clay-50 text-clay-500">
+                            <Zap className="h-2.5 w-2.5 fill-current" />Urgent
                           </span>
                         )}
                       </div>
@@ -162,7 +162,7 @@ export function MyJobsList({ jobs }: { jobs: JobRow[] }) {
                     <button
                       type="button"
                       onClick={() => setConfirmId(job.id)}
-                      className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-600 transition-colors"
+                      className="flex items-center gap-1 text-[11px] text-danger-500/60 hover:text-danger-500 transition-colors"
                     >
                       <Trash2 className="h-3 w-3" />
                       Delete job
@@ -172,8 +172,8 @@ export function MyJobsList({ jobs }: { jobs: JobRow[] }) {
 
                 {/* Confirm delete */}
                 {canDelete && isConfirming && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-center justify-between gap-3">
-                    <p className="text-xs text-red-700 font-medium">Permanently delete this job?</p>
+                  <div className="rounded-xl border border-danger-500/20 bg-danger-50 px-4 py-3 flex items-center justify-between gap-3">
+                    <p className="text-xs text-danger-600 font-medium">Permanently delete this job?</p>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -186,7 +186,7 @@ export function MyJobsList({ jobs }: { jobs: JobRow[] }) {
                         type="button"
                         disabled={isDeleting}
                         onClick={() => handleDelete(job.id)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-red-600 text-white text-xs font-semibold px-3 py-1.5 hover:bg-red-700 disabled:opacity-60 transition-colors"
+                        className="inline-flex items-center gap-1 rounded-lg bg-danger-500 text-white text-xs font-semibold px-3 py-1.5 hover:bg-danger-600 disabled:opacity-60 transition-colors"
                       >
                         {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                         Delete

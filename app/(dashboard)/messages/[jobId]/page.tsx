@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
-import { MessagesLayout } from './messages-layout'
+import { MessagesLayout } from './thread-view'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import type { User } from '@/types'
@@ -88,7 +88,7 @@ export default async function MessagePage({ params }: Props) {
 
   const otherUser = (otherUserData ?? { id: otherUserId }) as Partial<User>
   const otherRole: 'poster' | 'tasker' = isPoster ? 'tasker' : 'poster'
-  const backHref = isPoster ? `/my-jobs/${jobId}/offers` : `/job/${jobId}/active`
+  const backHref = isPoster ? `/my-jobs/${jobId}/offers` : `/jobs/${jobId}/active`
 
   return (
     <>

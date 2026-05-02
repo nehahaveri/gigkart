@@ -169,7 +169,7 @@ export function ReviewApproval({
           )}
         </Button>
         <Button variant="destructive" asChild>
-          <a href={`/job/${job.id}/dispute`}>
+          <a href={`/jobs/${job.id}/dispute`}>
             <AlertTriangle className="h-4 w-4" />
             Dispute
           </a>

@@ -1,12 +1,7 @@
 import Link from 'next/link'
-import { MapPin, Clock, Users, Shield, Zap, IndianRupee, ChevronRight } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { MapPin, Clock, Users, Shield, Zap, ArrowRight } from 'lucide-react'
 import { formatCurrency, formatDistance, formatRelativeTime } from '@/lib/utils/format'
 import type { Job } from '@/types'
-
-interface JobCardProps {
-  job: Job
-}
 
 const DURATION_LABELS: Record<string, string> = {
   few_hours: 'Few hrs',
@@ -17,42 +12,51 @@ const DURATION_LABELS: Record<string, string> = {
   recurring: 'Recurring',
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  Cleaning: 'bg-blue-50 text-blue-700',
-  Delivery: 'bg-orange-50 text-orange-700',
-  Tutoring: 'bg-violet-50 text-violet-700',
-  Repairs: 'bg-red-50 text-red-700',
-  Cooking: 'bg-amber-50 text-amber-700',
-  'Personal Care': 'bg-pink-50 text-pink-700',
-  Moving: 'bg-cyan-50 text-cyan-700',
-  Other: 'bg-sand-100 text-sand-600',
+const CATEGORY_ICONS: Record<string, string> = {
+  Cleaning:         '🧹',
+  Delivery:         '📦',
+  Tutoring:         '📚',
+  Repairs:          '🔧',
+  Cooking:          '🍳',
+  'Personal Care':  '💆',
+  'Moving & Packing': '🚚',
+  Moving:           '🚚',
+  'Tech Help':      '💻',
+  Gardening:        '🌿',
+  'Pet Care':       '🐾',
+  Errands:          '📍',
+  'Event Help':     '🎪',
+  Other:            '✨',
 }
 
-export function JobCard({ job }: JobCardProps) {
-  const catColor = CATEGORY_COLORS[job.category] ?? 'bg-sand-100 text-sand-600'
+export function JobCard({ job }: { job: Job }) {
+  const icon = CATEGORY_ICONS[job.category] ?? '✨'
 
   return (
     <Link href={`/jobs/${job.id}`} className="block group">
-      <div className="bg-white rounded-2xl border border-sand-200 p-4 hover:border-sand-300 hover:shadow-md transition-all duration-150">
+      <article className="relative bg-white rounded-2xl border border-sand-200 p-4 hover:border-cyprus-200 hover:shadow-md transition-all duration-200 overflow-hidden">
+        {/* Accent bar — appears on hover */}
+        <div className="absolute left-0 top-3 bottom-3 w-0.75 rounded-r-full bg-cyprus-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+
         <div className="flex items-start gap-3">
-          {/* Category icon circle */}
-          <div className={`shrink-0 h-10 w-10 rounded-xl flex items-center justify-center text-xs font-bold ${catColor}`}>
-            {job.category.slice(0, 2).toUpperCase()}
+          {/* Category emoji icon */}
+          <div className="shrink-0 h-11 w-11 rounded-xl bg-sand-100 flex items-center justify-center text-xl select-none">
+            {icon}
           </div>
 
           <div className="flex-1 min-w-0">
-            {/* Top row: badges */}
+            {/* Badges */}
             <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${catColor}`}>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-sand-100 text-sand-600">
                 {job.category}
               </span>
               {job.is_urgent && (
-                <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
-                  <Zap className="h-2.5 w-2.5" />Urgent
+                <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-clay-50 text-clay-500">
+                  <Zap className="h-2.5 w-2.5 fill-current" />Urgent
                 </span>
               )}
               {job.payment_mode === 'escrow' && (
-                <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-success-50 text-success-600">
+                <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-cyprus-50 text-cyprus-700">
                   <Shield className="h-2.5 w-2.5" />Escrow
                 </span>
               )}
@@ -62,13 +66,13 @@ export function JobCard({ job }: JobCardProps) {
             <h3 className="font-semibold text-sand-900 leading-snug line-clamp-1 group-hover:text-cyprus-700 transition-colors">
               {job.title}
             </h3>
-            <p className="text-sm text-sand-500 mt-0.5 line-clamp-2 leading-relaxed">{job.description}</p>
+            <p className="text-xs text-sand-500 mt-0.5 line-clamp-2 leading-relaxed">{job.description}</p>
           </div>
 
           {/* Budget */}
-          <div className="shrink-0 text-right">
-            <div className="font-bold text-sand-900 text-base">{formatCurrency(job.budget)}</div>
-            <div className="text-[11px] text-sand-400 capitalize">{job.budget_type}</div>
+          <div className="shrink-0 text-right ml-1">
+            <div className="font-bold text-sand-900">{formatCurrency(job.budget)}</div>
+            <div className="text-[10px] text-sand-400 capitalize mt-0.5">{job.budget_type}</div>
           </div>
         </div>
 
@@ -79,12 +83,16 @@ export function JobCard({ job }: JobCardProps) {
           ) : job.distance_km !== undefined ? (
             <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{formatDistance(job.distance_km)}</span>
           ) : null}
-          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{DURATION_LABELS[job.duration_type] ?? job.duration_type}</span>
-          <span className="flex items-center gap-1"><Users className="h-3 w-3" />{job.num_taskers} needed</span>
-          <span className="ml-auto text-sand-400">{formatRelativeTime(job.created_at)}</span>
-          <ChevronRight className="h-3.5 w-3.5 text-sand-300 group-hover:text-cyprus-700 transition-colors" />
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />{DURATION_LABELS[job.duration_type] ?? job.duration_type}
+          </span>
+          <span className="flex items-center gap-1">
+            <Users className="h-3 w-3" />{job.num_taskers} needed
+          </span>
+          <span className="ml-auto">{formatRelativeTime(job.created_at)}</span>
+          <ArrowRight className="h-3.5 w-3.5 text-sand-300 group-hover:text-cyprus-700 group-hover:translate-x-0.5 transition-all duration-200" />
         </div>
-      </div>
+      </article>
     </Link>
   )
 }

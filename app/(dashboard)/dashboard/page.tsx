@@ -7,7 +7,7 @@ import { JobCard } from '@/components/jobs/job-card'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils/format'
 import {
   Search, Plus, TrendingUp, Briefcase, ChevronRight,
-  Clock, IndianRupee, FileText, Zap, CheckCircle2, Bell,
+  Clock, IndianRupee, FileText, Zap, CheckCircle2, Bell, MapPin,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -105,70 +105,81 @@ export default async function DashboardPage() {
       <Navbar />
       <div className="mx-auto max-w-3xl px-4 py-6 space-y-8">
 
-        {/* ── Greeting header ─── */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm text-sand-500 font-medium">{greeting}</p>
-            <h1 className="text-2xl font-bold text-sand-900 mt-0.5">{firstName} 👋</h1>
-            {profile.city && (
-              <p className="text-sm text-sand-500 mt-1 flex items-center gap-1">
-                <Search className="h-3 w-3" />{profile.city}
-              </p>
-            )}
+        {/* ── Greeting hero ─── */}
+        <div className="relative rounded-3xl overflow-hidden bg-cyprus-700 px-6 py-7">
+          <div className="pointer-events-none absolute -top-10 -right-10 h-44 w-44 rounded-full bg-white/5" />
+          <div className="pointer-events-none absolute bottom-0 right-24 h-24 w-24 rounded-full bg-white/5" />
+          <div className="pointer-events-none absolute top-1/2 -translate-y-1/2 right-4 h-16 w-16 rounded-full bg-white/5" />
+          <div className="relative z-10 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-semibold text-cyprus-200 uppercase tracking-widest">{greeting}</p>
+              <h1 className="text-2xl font-bold text-white mt-1">{firstName} 👋</h1>
+              {profile.city && (
+                <p className="text-sm text-cyprus-200 mt-2 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5" />{profile.city}
+                </p>
+              )}
+            </div>
+            <Link
+              href="/profile/me"
+              className="shrink-0 h-12 w-12 rounded-2xl bg-white/15 border border-white/15 flex items-center justify-center text-white font-bold text-lg hover:bg-white/25 transition-colors"
+            >
+              {firstName[0]?.toUpperCase()}
+            </Link>
           </div>
-          <Link
-            href="/profile/me"
-            className="shrink-0 h-11 w-11 rounded-full bg-cyprus-700 flex items-center justify-center text-white font-bold text-base hover:bg-cyprus-800 transition-colors"
-          >
-            {firstName[0]?.toUpperCase()}
-          </Link>
         </div>
 
-        {/* ── Stat pills ─── */}
+        {/* ── Stat cards ─── */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {isTasker && (
             <>
               <div className="bg-white rounded-2xl border border-sand-200 p-4">
-                <div className="flex items-center gap-2 text-xs text-sand-500 mb-1">
-                  <IndianRupee className="h-3.5 w-3.5" />Earnings
+                <div className="h-8 w-8 rounded-xl bg-success-50 flex items-center justify-center mb-3">
+                  <IndianRupee className="h-4 w-4 text-success-600" />
                 </div>
                 <div className="text-xl font-bold text-success-600">{formatCurrency(totalEarnings)}</div>
+                <div className="text-xs text-sand-500 mt-0.5">Total earnings</div>
               </div>
               <div className="bg-white rounded-2xl border border-sand-200 p-4">
-                <div className="flex items-center gap-2 text-xs text-sand-500 mb-1">
-                  <Briefcase className="h-3.5 w-3.5" />Active gigs
+                <div className="h-8 w-8 rounded-xl bg-cyprus-50 flex items-center justify-center mb-3">
+                  <Briefcase className="h-4 w-4 text-cyprus-700" />
                 </div>
                 <div className="text-xl font-bold text-sand-900">{activeWork.length}</div>
+                <div className="text-xs text-sand-500 mt-0.5">Active gigs</div>
               </div>
               <div className="bg-white rounded-2xl border border-sand-200 p-4">
-                <div className="flex items-center gap-2 text-xs text-sand-500 mb-1">
-                  <Clock className="h-3.5 w-3.5" />Pending offers
+                <div className="h-8 w-8 rounded-xl bg-clay-50 flex items-center justify-center mb-3">
+                  <Clock className="h-4 w-4 text-clay-500" />
                 </div>
                 <div className="text-xl font-bold text-sand-900">{pendingOfferCount}</div>
+                <div className="text-xs text-sand-500 mt-0.5">Pending offers</div>
               </div>
               <div className="bg-white rounded-2xl border border-sand-200 p-4">
-                <div className="flex items-center gap-2 text-xs text-sand-500 mb-1">
-                  <CheckCircle2 className="h-3.5 w-3.5" />Completed
+                <div className="h-8 w-8 rounded-xl bg-sand-100 flex items-center justify-center mb-3">
+                  <CheckCircle2 className="h-4 w-4 text-sand-600" />
                 </div>
                 <div className="text-xl font-bold text-sand-900">
                   {(activeWork as unknown as { approved_at?: string }[]).filter((a) => 'approved_at' in a).length}
                 </div>
+                <div className="text-xs text-sand-500 mt-0.5">Completed</div>
               </div>
             </>
           )}
           {isPoster && !isTasker && (
             <>
               <div className="bg-white rounded-2xl border border-sand-200 p-4">
-                <div className="flex items-center gap-2 text-xs text-sand-500 mb-1">
-                  <FileText className="h-3.5 w-3.5" />Active jobs
+                <div className="h-8 w-8 rounded-xl bg-cyprus-50 flex items-center justify-center mb-3">
+                  <FileText className="h-4 w-4 text-cyprus-700" />
                 </div>
                 <div className="text-xl font-bold text-sand-900">{activeJobs?.data?.length ?? 0}</div>
+                <div className="text-xs text-sand-500 mt-0.5">Active jobs</div>
               </div>
               <div className="bg-white rounded-2xl border border-sand-200 p-4">
-                <div className="flex items-center gap-2 text-xs text-sand-500 mb-1">
-                  <Bell className="h-3.5 w-3.5" />New offers
+                <div className="h-8 w-8 rounded-xl bg-clay-50 flex items-center justify-center mb-3">
+                  <Bell className="h-4 w-4 text-clay-500" />
                 </div>
                 <div className="text-xl font-bold text-sand-900">{myOffers.length}</div>
+                <div className="text-xs text-sand-500 mt-0.5">New offers</div>
               </div>
             </>
           )}
@@ -193,14 +204,14 @@ export default async function DashboardPage() {
           {isTasker && (
             <Link
               href="/jobs"
-              className="group flex items-center gap-3 p-4 rounded-2xl bg-sand-900 text-white hover:bg-sand-800 transition-colors"
+              className="group flex items-center gap-3 p-4 rounded-2xl bg-clay-500 text-white hover:bg-clay-600 transition-colors"
             >
-              <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+              <div className="h-9 w-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
                 <Search className="h-5 w-5" />
               </div>
               <div>
                 <div className="font-semibold text-sm">Browse Gigs</div>
-                <div className="text-xs text-sand-300 mt-0.5">Find nearby work</div>
+                <div className="text-xs text-clay-100 mt-0.5">Find nearby work</div>
               </div>
             </Link>
           )}
@@ -250,7 +261,7 @@ export default async function DashboardPage() {
                   {activeWork.map((a) => {
                     const j = a.job as unknown as { id: string; title: string; budget: number; category: string }
                     return (
-                      <Link key={a.id} href={`/job/${j.id}/active`} className="block">
+                      <Link key={a.id} href={`/jobs/${j.id}/active`} className="block">
                         <div className="bg-white rounded-2xl border border-sand-200 p-4 flex items-center gap-3 hover:border-sand-300 hover:shadow-sm transition-all">
                           <div className="h-9 w-9 rounded-xl bg-cyprus-50 flex items-center justify-center shrink-0">
                             <Briefcase className="h-4 w-4 text-cyprus-700" />
@@ -264,7 +275,7 @@ export default async function DashboardPage() {
                             <div className="text-[10px] text-sand-400">your cut</div>
                           </div>
                           {a.submitted_at && (
-                            <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">Awaiting approval</span>
+                            <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-clay-50 text-clay-500">Awaiting approval</span>
                           )}
                         </div>
                       </Link>

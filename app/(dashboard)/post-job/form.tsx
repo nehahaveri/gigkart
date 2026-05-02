@@ -96,7 +96,7 @@ export function PostJobForm() {
     <form action={formAction} className="space-y-5">
       {/* Test mode banner */}
       <div className="flex items-start gap-3 rounded-2xl border border-clay-100 bg-clay-50 p-4">
-        <Zap className="h-4 w-4 text-clay-500 flex-shrink-0 mt-0.5" />
+        <Zap className="h-4 w-4 text-clay-500 shrink-0 mt-0.5" />
         <div className="text-xs">
           <div className="font-semibold text-clay-700">Test mode — payments simulated</div>
           <div className="text-clay-600 mt-0.5">No real money moves until Razorpay keys are configured.</div>
@@ -421,7 +421,7 @@ export function PostJobForm() {
 
       {/* Global error */}
       {errors._ && (
-        <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-danger-600">
+        <div className="rounded-xl bg-danger-50 border border-danger-100 p-3 text-sm text-danger-600">
           {errors._}
         </div>
       )}

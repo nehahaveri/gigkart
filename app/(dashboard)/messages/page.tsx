@@ -110,9 +110,9 @@ export default async function MessagesPage() {
 
   const STATUS_COLOR: Record<string, string> = {
     open: 'bg-success-50 text-success-600',
-    active: 'bg-amber-50 text-amber-600',
+    active: 'bg-clay-50 text-clay-500',
     completed: 'bg-sand-100 text-sand-500',
-    disputed: 'bg-red-50 text-red-600',
+    disputed: 'bg-danger-50 text-danger-500',
     cancelled: 'bg-sand-100 text-sand-400',
   }
 

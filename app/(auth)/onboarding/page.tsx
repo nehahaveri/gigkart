@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { OnboardingWizard } from './onboarding-wizard'
+import { OnboardingWizard } from './wizard'
 
 export const metadata: Metadata = {
   title: 'Get started',

@@ -58,7 +58,7 @@ const TRUST_META: Record<TrustTier, { label: string; icon: React.ReactNode; clas
   caution: {
     label: 'Unverified',
     icon: <AlertTriangle className="h-3 w-3" />,
-    className: 'bg-amber-100 text-amber-700',
+    className: 'bg-clay-50 text-clay-500',
   },
 }
 
@@ -161,7 +161,7 @@ export function OffersList({
         <span className="font-semibold text-sand-700 shrink-0">Trust signals:</span>
         <span className="flex items-center gap-1"><span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-cyprus-700 text-white text-[10px] font-medium"><Award className="h-3 w-3" />Pro</span> ID-verified, 5+ jobs, ≥80% completion</span>
         <span className="flex items-center gap-1"><span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-success-100 text-success-700 text-[10px] font-medium"><Shield className="h-3 w-3" />Trusted</span> ID-verified, has reviews</span>
-        <span className="flex items-center gap-1"><span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium"><AlertTriangle className="h-3 w-3" />Unverified</span> No ID, no reviews yet</span>
+        <span className="flex items-center gap-1"><span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-clay-50 text-clay-500 text-[10px] font-medium"><AlertTriangle className="h-3 w-3" />Unverified</span> No ID, no reviews yet</span>
       </div>
 
       {/* Offer cards */}
@@ -232,7 +232,7 @@ export function OffersList({
 
                   {/* Caution warning for brand-new unverified */}
                   {getTrustTier(tasker) === 'caution' && (
-                    <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 p-2 text-xs text-amber-700">
+                    <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-clay-50 border border-clay-100 p-2 text-xs text-clay-600">
                       <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                       <span>This tasker has no ID verification and no completed jobs. Review their offer carefully before accepting.</span>
                     </div>
@@ -291,7 +291,7 @@ export function OffersList({
                         Message Tasker
                       </Link>
                       <Link
-                        href={`/job/${offer.job_id}/active`}
+                        href={`/jobs/${offer.job_id}/active`}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-sand-200 text-sand-700 text-xs font-semibold px-3 py-2 hover:bg-sand-50 transition-colors"
                       >
                         View Active Job →

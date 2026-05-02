@@ -18,7 +18,7 @@ export async function startJob(assignmentId: string, jobId: string) {
     .eq('tasker_id', user.id)
 
   if (error) return { error: error.message }
-  revalidatePath(`/job/${jobId}/active`)
+  revalidatePath(`/jobs/${jobId}/active`)
   return { success: true }
 }
 
@@ -59,7 +59,7 @@ export async function submitProof(
     .eq('tasker_id', user.id)
 
   if (error) return { error: error.message }
-  revalidatePath(`/job/${jobId}/active`)
+  revalidatePath(`/jobs/${jobId}/active`)
   return { success: true }
 }
 
@@ -88,7 +88,7 @@ export async function cancelJob(jobId: string) {
     .eq('poster_id', user.id)
 
   if (error) return { error: error.message }
-  revalidatePath(`/job/${jobId}/active`)
+  revalidatePath(`/jobs/${jobId}/active`)
   revalidatePath('/my-jobs')
   return { success: true }
 }

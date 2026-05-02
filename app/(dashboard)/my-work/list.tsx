@@ -126,7 +126,7 @@ export function MyWorkList({
             if (!job) return null
             const isAssignment = 'offer_id' in item
             const isAccepted = !isAssignment && (item as OfferRow).status === 'accepted'
-            const href = isAssignment ? `/job/${job.id}/active` : (isAccepted ? `/job/${job.id}/active` : `/jobs/${job.id}`)
+            const href = isAssignment ? `/jobs/${job.id}/active` : (isAccepted ? `/jobs/${job.id}/active` : `/jobs/${job.id}`)
             const priceAmount = !isAssignment ? (item as OfferRow).price : job.budget * 0.9
 
             // Accepted offer — special card with CTAs
@@ -152,7 +152,7 @@ export function MyWorkList({
                   </div>
                   <div className="flex gap-2">
                     <Link
-                      href={`/job/${job.id}/active`}
+                      href={`/jobs/${job.id}/active`}
                       className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-cyprus-700 text-white text-xs font-semibold px-3 py-2 hover:bg-cyprus-800 transition-colors"
                     >
                       <Briefcase className="h-3.5 w-3.5" />

@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
-import { OffersList } from './offers-list'
+import { OffersList } from './list'
 import { BackButton } from '@/components/ui/back-button'
 import type { Metadata } from 'next'
 

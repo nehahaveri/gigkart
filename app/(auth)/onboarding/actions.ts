@@ -43,7 +43,7 @@ export async function completeOnboarding(
     }
     const { error } = await supabase
       .from('users')
-      .update({ full_name: parsed.data.full_name, city: parsed.data.city, role: ['poster'] })
+      .update({ full_name: parsed.data.full_name, city: parsed.data.city, role: ['poster'], skills: [] })
       .eq('id', user.id)
     if (error) return { errors: { _: error.message } }
   } else {
@@ -68,6 +68,7 @@ export async function completeOnboarding(
       .update({
         full_name: parsed.data.full_name,
         city: parsed.data.city,
+        skills: parsed.data.skills,
         ...(parsed.data.upi_id ? { upi_id: parsed.data.upi_id } : {}),
         role: dbRole,
       })

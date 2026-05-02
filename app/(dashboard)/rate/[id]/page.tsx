@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
-import { RatingForm } from './rating-form'
+import { RatingForm } from './form'
 import { BackButton } from '@/components/ui/back-button'
 import type { Metadata } from 'next'
 

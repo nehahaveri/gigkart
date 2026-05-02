@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency } from '@/lib/utils/format'
 import {
-  CheckCircle, Circle, Upload, Camera, Loader2, MessageCircle, AlertTriangle,
+  CheckCircle, Circle, Upload, Camera, Loader2, MessageCircle, AlertTriangle, Clock,
 } from 'lucide-react'
 import { startJob, submitProof, cancelJob, abandonJob } from './actions'
 import { toast } from 'sonner'
@@ -43,14 +43,15 @@ export function ActiveJobView({
   currentUserId: string
 }) {
   const [assignment, setAssignment] = useState(initialAssignment)
+  const [currentJob, setCurrentJob] = useState(job)
   const [loading, setLoading] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const progress = getProgress(assignment)
 
-  // Real-time subscription
+  // Real-time: job_assignments (proof, started, approved)
   useEffect(() => {
     const supabase = createClient()
-    const channel = supabase
+    const assignmentChannel = supabase
       .channel(`assignment-${assignment.id}`)
       .on(
         'postgres_changes',
@@ -65,8 +66,29 @@ export function ActiveJobView({
         }
       )
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [assignment.id])
+
+    // Real-time: jobs (cancel, complete) — reflects on both sides
+    const jobChannel = supabase
+      .channel(`job-${job.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'jobs',
+          filter: `id=eq.${job.id}`,
+        },
+        (payload) => {
+          setCurrentJob((prev) => ({ ...prev, ...payload.new }))
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(assignmentChannel)
+      supabase.removeChannel(jobChannel)
+    }
+  }, [assignment.id, job.id])
 
   async function handleStart() {
     setLoading(true)
@@ -100,7 +122,7 @@ export function ActiveJobView({
     // abandonJob redirects, no need to handle success here
   }
 
-  const isCancelled = job.status === 'cancelled'
+  const isCancelled = currentJob.status === 'cancelled'
   const isCompleted = !!assignment.approved_at
   const canCancel = !isCancelled && !isCompleted && !assignment.submitted_at
 
@@ -121,11 +143,11 @@ export function ActiveJobView({
 
       {/* Cancelled state */}
       {isCancelled && (
-        <div className="rounded-2xl bg-red-50 border border-red-200 p-4 flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+        <div className="rounded-2xl bg-danger-50 border border-danger-100 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-danger-500 shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-red-700">This job has been cancelled</p>
-            <p className="text-xs text-red-500 mt-0.5">No further action is needed.</p>
+            <p className="text-sm font-semibold text-danger-500">This job has been cancelled</p>
+            <p className="text-xs text-danger-500/70 mt-0.5">No further action is needed.</p>
           </div>
         </div>
       )}
@@ -133,10 +155,10 @@ export function ActiveJobView({
       {/* Header */}
       <div>
         <Badge variant={isCompleted ? 'success' : isCancelled ? 'destructive' : 'warning'}>
-          {job.status}
+          {currentJob.status}
         </Badge>
-        <h1 className="text-2xl font-bold text-sand-900 mt-2">{job.title}</h1>
-        <p className="text-sm text-sand-500 mt-1">{formatCurrency(job.budget)} · {job.category}</p>
+        <h1 className="text-2xl font-bold text-sand-900 mt-2">{currentJob.title}</h1>
+        <p className="text-sm text-sand-500 mt-1">{formatCurrency(currentJob.budget)} · {currentJob.category}</p>
       </div>
 
       {/* Other party */}
@@ -166,7 +188,7 @@ export function ActiveJobView({
       {/* Message button — visible to both sides */}
       {otherUser?.id && !isCancelled && (
         <Link
-          href={`/messages/${job.id}`}
+          href={`/messages/${currentJob.id}`}
           className="flex items-center gap-3 w-full rounded-2xl border border-cyprus-200 bg-cyprus-50 px-4 py-3.5 hover:bg-cyprus-100 transition-colors"
         >
           <div className="h-9 w-9 rounded-full bg-cyprus-700 flex items-center justify-center shrink-0">
@@ -186,27 +208,52 @@ export function ActiveJobView({
       {!isCancelled && (
         <Card>
           <CardContent className="p-5">
-            <h2 className="font-semibold text-sand-900 mb-4">Progress</h2>
-            <div className="space-y-3">
-              {PROGRESS_STEPS.map((step, i) => {
-                const done = i <= progress
-                const current = i === progress && !isCompleted
-                return (
-                  <div key={step.key} className="flex items-center gap-3">
-                    {done ? (
-                      <CheckCircle className={cn('h-5 w-5 shrink-0', current ? 'text-cyprus-700' : 'text-success-500')} />
-                    ) : (
-                      <Circle className="h-5 w-5 shrink-0 text-sand-200" />
-                    )}
-                    <span className={cn('text-sm font-medium', done ? 'text-sand-900' : 'text-sand-500')}>
-                      {step.label}
-                    </span>
-                    {current && (
-                      <Badge variant="default" className="ml-auto text-xs">Current</Badge>
-                    )}
-                  </div>
-                )
-              })}
+            <h2 className="font-semibold text-sand-500 mb-5 text-sm uppercase tracking-wider">Progress</h2>
+            <div className="relative">
+              {/* Connecting line */}
+              <div className="absolute left-3.5 top-5 bottom-5 w-px bg-sand-200" />
+              <div className="space-y-0">
+                {PROGRESS_STEPS.map((step, i) => {
+                  const done = i < progress || isCompleted
+                  const current = i === progress && !isCompleted
+                  const upcoming = !done && !current
+                  return (
+                    <div key={step.key} className="relative flex items-start gap-4 pb-5 last:pb-0">
+                      {/* Step circle */}
+                      <div className={cn(
+                        'relative z-10 h-7 w-7 rounded-full flex items-center justify-center shrink-0 border-2 transition-all',
+                        done ? 'bg-success-500 border-success-500' :
+                        current ? 'bg-cyprus-700 border-cyprus-700' :
+                        'bg-white border-sand-200'
+                      )}>
+                        {done ? (
+                          <CheckCircle className="h-3.5 w-3.5 text-white" />
+                        ) : current ? (
+                          <div className="h-2.5 w-2.5 rounded-full bg-white" />
+                        ) : (
+                          <div className="h-2.5 w-2.5 rounded-full bg-sand-200" />
+                        )}
+                      </div>
+                      {/* Label */}
+                      <div className="pt-1.5">
+                        <span className={cn(
+                          'text-sm font-semibold',
+                          done ? 'text-success-600' :
+                          current ? 'text-cyprus-700' :
+                          'text-sand-400'
+                        )}>
+                          {step.label}
+                        </span>
+                        {current && (
+                          <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-cyprus-600 bg-cyprus-50 px-2 py-0.5 rounded-full">
+                            In progress
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -257,8 +304,12 @@ export function ActiveJobView({
           )}
 
           {assignment.submitted_at && !assignment.approved_at && (
-            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-              Proof submitted. Waiting for the poster to review and approve your work.
+            <div className="rounded-xl bg-clay-50 border border-clay-100 p-4 flex items-start gap-3">
+              <Clock className="h-4 w-4 text-clay-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-clay-600">Proof submitted</p>
+                <p className="text-xs text-clay-500 mt-0.5">Waiting for the poster to review and approve your work.</p>
+              </div>
             </div>
           )}
         </div>
@@ -286,10 +337,10 @@ export function ActiveJobView({
           )}
           <div className="flex gap-3">
             <Button className="flex-1" asChild>
-              <a href={`/job/${job.id}/review`}>Approve & Release Payment</a>
+              <a href={`/jobs/${currentJob.id}/review`}>Approve &amp; Release Payment</a>
             </Button>
             <Button variant="destructive" asChild>
-              <a href={`/job/${job.id}/dispute`}>Raise Issue</a>
+              <a href={`/jobs/${currentJob.id}/dispute`}>Raise Issue</a>
             </Button>
           </div>
         </div>
@@ -300,7 +351,7 @@ export function ActiveJobView({
         <div className="rounded-xl bg-success-50 border border-success-200 p-4 text-sm text-success-700 text-center">
           <CheckCircle className="h-5 w-5 mx-auto mb-2" />
           Job completed and payment released!
-          <a href={`/rate/${job.id}`} className="block mt-2 font-medium text-success-800 underline">
+          <a href={`/rate/${currentJob.id}`} className="block mt-2 font-medium text-success-800 underline">
             Leave a review
           </a>
         </div>
@@ -313,18 +364,18 @@ export function ActiveJobView({
             <button
               type="button"
               onClick={() => setShowCancelConfirm(true)}
-              className="text-xs text-red-400 hover:text-red-600 transition-colors"
+              className="text-xs text-danger-500/60 hover:text-danger-500 transition-colors"
             >
               {isPoster ? 'Cancel this job' : 'Withdraw from this job'}
             </button>
           ) : (
-            <div className="rounded-xl bg-red-50 border border-red-200 p-4 space-y-3">
-              <p className="text-sm font-semibold text-red-700">
+            <div className="rounded-xl bg-danger-50 border border-danger-100 p-4 space-y-3">
+              <p className="text-sm font-semibold text-danger-500">
                 {isPoster
                   ? 'Are you sure you want to cancel this job?'
                   : 'Are you sure you want to withdraw?'}
               </p>
-              <p className="text-xs text-red-500">
+              <p className="text-xs text-danger-500/70">
                 {isPoster
                   ? 'The tasker will be notified. This cannot be undone.'
                   : 'The job will be reopened for other taskers. This cannot be undone.'}

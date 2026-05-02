@@ -1,18 +1,15 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
-import { ActiveJobView } from './active-job-view'
+import { ReviewApproval } from './approval'
 import { BackButton } from '@/components/ui/back-button'
 import type { Metadata } from 'next'
 
 type Props = { params: Promise<{ id: string }> }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params
-  return { title: `Active Job — ${id.slice(0, 8)}` }
-}
+export const metadata: Metadata = { title: 'Review & Approve Work' }
 
-export default async function ActiveJobPage({ params }: Props) {
+export default async function ReviewPage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
   const {
@@ -23,28 +20,26 @@ export default async function ActiveJobPage({ params }: Props) {
 
   const { data: job } = await supabase
     .from('jobs')
-    .select('*')
+    .select('id, title, budget, poster_id, status, escrow_payment_id')
     .eq('id', id)
     .single()
 
   if (!job) notFound()
+  if (job.poster_id !== user.id) redirect('/dashboard')
 
   const { data: assignment } = await supabase
     .from('job_assignments')
-    .select('*')
+    .select('*, tasker:users!job_assignments_tasker_id_fkey(id, full_name, avatar_url)')
     .eq('job_id', id)
     .single()
 
   if (!assignment) notFound()
 
-  const isPoster = user.id === job.poster_id
-  const isTasker = user.id === assignment.tasker_id
-  if (!isPoster && !isTasker) redirect('/dashboard')
-
-  const { data: otherUser } = await supabase
+  // Check if tasker has a UPI ID — needed before payout can be released
+  const { data: taskerProfile } = await supabase
     .from('users')
-    .select('id, full_name, avatar_url, rating_avg, city')
-    .eq('id', isPoster ? assignment.tasker_id : job.poster_id)
+    .select('upi_id')
+    .eq('id', assignment.tasker_id)
     .single()
 
   return (
@@ -52,14 +47,12 @@ export default async function ActiveJobPage({ params }: Props) {
       <Navbar />
       <div className="mx-auto max-w-2xl px-4 py-8">
         <div className="mb-5">
-          <BackButton href={isPoster ? '/my-jobs' : '/my-work'} label={isPoster ? 'My Postings' : 'My Gigs'} />
+          <BackButton href={`/jobs/${id}/active`} label="Back to job" />
         </div>
-        <ActiveJobView
+        <ReviewApproval
           job={job}
           assignment={assignment}
-          isPoster={isPoster}
-          otherUser={otherUser}
-          currentUserId={user.id}
+          taskerHasUpi={!!taskerProfile?.upi_id}
         />
       </div>
     </>

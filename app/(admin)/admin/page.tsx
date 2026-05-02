@@ -40,7 +40,7 @@ export default async function AdminPage() {
     supabase.from('users').select('*', { count: 'exact', head: true }),
     supabase.from('jobs').select('*', { count: 'exact', head: true }),
     supabase.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
-    supabase.from('users').select('*', { count: 'exact', head: true }).eq('aadhaar_verified', false),
+    supabase.from('kyc_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
   ])
 
   // Open disputes list
@@ -52,10 +52,10 @@ export default async function AdminPage() {
     .limit(10)
 
   const stats = [
-    { label: 'Total users',      value: totalUsers ?? 0,    icon: Users,        color: 'text-cyprus-700' },
-    { label: 'Total jobs',       value: totalJobs ?? 0,     icon: Briefcase,    color: 'text-cyprus-700' },
-    { label: 'Open disputes',    value: openDisputes ?? 0,  icon: AlertTriangle, color: 'text-clay-500' },
-    { label: 'Unverified users', value: pendingKyc ?? 0,    icon: Shield,       color: 'text-sand-500' },
+    { label: 'Total users',     value: totalUsers ?? 0,   icon: Users,         color: 'text-cyprus-700' },
+    { label: 'Total jobs',      value: totalJobs ?? 0,    icon: Briefcase,     color: 'text-cyprus-700' },
+    { label: 'Open disputes',   value: openDisputes ?? 0, icon: AlertTriangle, color: 'text-clay-500' },
+    { label: 'Pending KYC',     value: pendingKyc ?? 0,   icon: Shield,        color: 'text-sand-500' },
   ]
 
   return (
@@ -121,7 +121,7 @@ export default async function AdminPage() {
                         <div className="text-xs text-sand-500 mt-0.5">{d.reason}</div>
                       </div>
                       <Button size="sm" variant="outline" asChild>
-                        <Link href={`/job/${job?.id}/dispute`}>
+                        <Link href={`/jobs/${job?.id}/dispute`}>
                           Review
                         </Link>
                       </Button>
@@ -137,9 +137,9 @@ export default async function AdminPage() {
             <h2 className="text-lg font-bold text-sand-900 mb-4 tracking-tight">Quick Links</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {[
-                { label: 'All Jobs',   href: '/jobs' },
-                { label: 'All Users',  href: '/admin/users' },
-                { label: 'Settings',   href: '/settings' },
+                { label: 'All Jobs',        href: '/jobs' },
+                { label: 'KYC Review',      href: '/admin/kyc' },
+                { label: 'Settings',        href: '/settings' },
               ].map(({ label, href }) => (
                 <Button key={href} variant="outline" asChild className="h-12 font-semibold">
                   <Link href={href}>{label}</Link>

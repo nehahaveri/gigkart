@@ -1,22 +1,25 @@
 'use client'
 
 import { useActionState, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Shield, LogOut, Trash2, Phone, Mail, User as UserIcon, MapPin, Wallet, AlertTriangle } from 'lucide-react'
+import { Loader2, Shield, LogOut, Trash2, Phone, Mail, User as UserIcon, MapPin, Wallet, AlertTriangle, ChevronRight, CheckCircle2, Clock } from 'lucide-react'
 import { updateProfile, signOut, deleteAccount, type SettingsState } from './actions'
 import { toast } from 'sonner'
-import type { User } from '@/types'
+import type { User, KycRequest } from '@/types'
 
 export function SettingsForm({
   profile,
   email,
   phone,
+  kycRequest,
 }: {
   profile: User | null
   email: string | null
   phone: string | null
+  kycRequest: KycRequest | null
 }) {
   const [state, formAction, pending] = useActionState<SettingsState, FormData>(updateProfile, {})
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -49,14 +52,69 @@ export function SettingsForm({
               <span className="text-sand-700">{email}</span>
             </div>
           )}
-          <div className="flex items-center gap-3">
-            <Shield className={profile?.aadhaar_verified ? 'h-4 w-4 text-success-500 shrink-0' : 'h-4 w-4 text-sand-400 shrink-0'} />
-            {profile?.aadhaar_verified ? (
-              <Badge variant="success">KYC Verified</Badge>
-            ) : (
-              <Badge variant="warning">KYC Pending</Badge>
+        </div>
+      </div>
+
+      {/* ── Identity verification ── */}
+      <div className="bg-white rounded-2xl border border-sand-200 overflow-hidden">
+        <div className="p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${profile?.aadhaar_verified ? 'bg-success-50' : 'bg-sand-100'}`}>
+              <Shield className={`h-4 w-4 ${profile?.aadhaar_verified ? 'text-success-600' : 'text-sand-500'}`} />
+            </div>
+            <h2 className="font-semibold text-sand-900">Identity verification</h2>
+            {profile?.aadhaar_verified && (
+              <Badge variant="success" className="ml-auto">Verified</Badge>
             )}
           </div>
+          <p className="text-xs text-sand-500 mt-1 mb-4">
+            Verified users get a badge on their profile and are trusted more by posters and taskers.
+          </p>
+
+          {profile?.aadhaar_verified ? (
+            <div className="flex items-center gap-3 rounded-xl bg-success-50 border border-success-100 p-3">
+              <CheckCircle2 className="h-5 w-5 text-success-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-success-700">Your identity is verified</p>
+                {profile.aadhaar_last4 && (
+                  <p className="text-xs text-success-600 mt-0.5">ID ending ····{profile.aadhaar_last4}</p>
+                )}
+              </div>
+            </div>
+          ) : kycRequest?.status === 'pending' ? (
+            <div className="flex items-center gap-3 rounded-xl bg-sand-50 border border-sand-200 p-3">
+              <Clock className="h-5 w-5 text-sand-500 shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-sand-700">Under review</p>
+                <p className="text-xs text-sand-500 mt-0.5">Your documents are being reviewed. Usually 24–48 hours.</p>
+              </div>
+            </div>
+          ) : (
+            <Link
+              href="/settings/verify"
+              className="flex items-center gap-3 rounded-xl border-2 border-dashed border-sand-200 p-4 hover:border-cyprus-200 hover:bg-sand-50 transition-colors group"
+            >
+              <div className="h-10 w-10 rounded-xl bg-cyprus-50 flex items-center justify-center shrink-0">
+                <Shield className="h-5 w-5 text-cyprus-700" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-sand-900">Verify your identity</p>
+                <p className="text-xs text-sand-500 mt-0.5">
+                  {kycRequest?.status === 'rejected'
+                    ? 'Your last submission was rejected — tap to resubmit'
+                    : 'Upload your Aadhaar, passport, or driving licence'}
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-sand-400 group-hover:text-cyprus-700 transition-colors" />
+            </Link>
+          )}
+
+          {kycRequest?.status === 'rejected' && kycRequest.rejection_reason && (
+            <div className="mt-3 rounded-xl bg-clay-50 border border-clay-100 p-3 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-clay-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-clay-700">{kycRequest.rejection_reason}</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -119,7 +177,7 @@ export function SettingsForm({
 
           <div className="border-t border-sand-100 p-5">
             {state?.errors?._ && (
-              <div className="flex items-start gap-2 rounded-xl bg-red-50 border border-red-100 p-3 mb-4 text-sm text-danger-600">
+              <div className="flex items-start gap-2 rounded-xl bg-danger-50 border border-danger-500/20 p-3 mb-4 text-sm text-danger-600">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                 {state.errors._}
               </div>
@@ -132,9 +190,9 @@ export function SettingsForm({
       </form>
 
       {/* ── Danger zone ── */}
-      <div className="bg-white rounded-2xl border border-red-100 p-5 space-y-3">
+      <div className="bg-white rounded-2xl border border-danger-100 p-5 space-y-3">
         <div className="flex items-center gap-2 mb-1">
-          <div className="h-8 w-8 rounded-xl bg-red-50 flex items-center justify-center">
+          <div className="h-8 w-8 rounded-xl bg-danger-50 flex items-center justify-center">
             <AlertTriangle className="h-4 w-4 text-danger-500" />
           </div>
           <h2 className="font-semibold text-danger-600">Danger zone</h2>
@@ -159,7 +217,7 @@ export function SettingsForm({
           <Button
             type="button"
             variant="outline"
-            className="w-full text-danger-600 hover:bg-red-50 border-red-100"
+            className="w-full text-danger-600 hover:bg-danger-50 border-danger-100"
             onClick={() => setConfirmDelete(true)}
           >
             <Trash2 className="h-4 w-4" />

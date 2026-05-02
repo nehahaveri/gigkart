@@ -1,12 +1,13 @@
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/ui/back-button'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils/format'
-import { MapPin, Clock, Users, Shield, Zap, Star, Calendar } from 'lucide-react'
-import { SendOfferForm } from './send-offer-form'
+import { MapPin, Clock, Users, Shield, Zap, Star, Calendar, IndianRupee, ExternalLink } from 'lucide-react'
+import { SendOfferForm } from './offer-form'
 import type { Metadata } from 'next'
 import type { User } from '@/types'
 
@@ -127,17 +128,19 @@ export default async function JobDetailPage({ params }: Props) {
         </div>
 
         {/* Budget */}
-        <div className="mt-6 p-4 rounded-2xl bg-cyprus-50 border border-cyprus-100 flex items-center justify-between">
+        <div className="mt-6 rounded-2xl bg-cyprus-700 text-sand p-5 flex items-center justify-between gap-4">
           <div>
-            <div className="text-2xl font-bold text-sand-900">
-              {formatCurrency(job.budget)}
+            <div className="text-xs font-semibold tracking-[0.15em] uppercase text-cyprus-200 mb-1">Budget</div>
+            <div className="flex items-baseline gap-1">
+              <IndianRupee className="h-5 w-5 text-sand/80 mb-0.5" />
+              <span className="text-3xl font-bold tracking-tight">{job.budget.toLocaleString('en-IN')}</span>
             </div>
-            <div className="text-sm text-sand-500 capitalize">{job.budget_type} · {job.payment_mode}</div>
+            <div className="text-xs text-cyprus-200 capitalize mt-1">{job.budget_type} · {job.payment_mode}</div>
           </div>
-          <div className="text-right text-sm text-sand-500">
-            {offerCount ?? 0} offer{offerCount !== 1 ? 's' : ''} received
-            <br />
-            Posted {formatRelativeTime(job.created_at)}
+          <div className="text-right shrink-0">
+            <div className="text-2xl font-bold text-sand">{offerCount ?? 0}</div>
+            <div className="text-xs text-cyprus-200">offer{offerCount !== 1 ? 's' : ''} received</div>
+            <div className="text-xs text-cyprus-300 mt-2">{formatRelativeTime(job.created_at)}</div>
           </div>
         </div>
 
@@ -167,21 +170,38 @@ export default async function JobDetailPage({ params }: Props) {
         )}
 
         {/* Poster */}
-        <div className="mt-6 p-4 rounded-2xl border border-sand-100 bg-white flex items-center gap-4">
-          <div className="h-12 w-12 rounded-full bg-cyprus-100 flex items-center justify-center text-cyprus-700 font-bold text-lg">
-            {poster?.full_name?.[0] ?? '?'}
+        <div className="mt-6 rounded-2xl border border-sand-200 bg-white overflow-hidden">
+          <div className="px-4 py-2.5 bg-sand-50 border-b border-sand-100">
+            <span className="text-xs font-semibold tracking-[0.12em] uppercase text-sand-500">Posted by</span>
           </div>
-          <div className="flex-1">
-            <div className="font-semibold text-sand-900">{poster?.full_name ?? 'Anonymous'}</div>
-            <div className="flex items-center gap-2 text-sm text-sand-500">
-              {poster?.rating_avg > 0 && (
-                <span className="flex items-center gap-0.5">
-                  <Star className="h-3 w-3 text-clay-400 fill-clay-400" />
-                  {Number(poster.rating_avg).toFixed(1)} ({poster.rating_count})
-                </span>
-              )}
-              {poster?.city && <span>· {poster.city}</span>}
+          <div className="p-4 flex items-center gap-4">
+            <Link href={`/profile/${job.poster_id}`}>
+              <div className="h-12 w-12 rounded-2xl bg-cyprus-700 flex items-center justify-center text-sand font-bold text-lg hover:bg-cyprus-800 transition-colors">
+                {poster?.full_name?.[0]?.toUpperCase() ?? '?'}
+              </div>
+            </Link>
+            <div className="flex-1 min-w-0">
+              <Link href={`/profile/${job.poster_id}`} className="font-semibold text-sand-900 hover:text-cyprus-700 transition-colors">
+                {poster?.full_name ?? 'Anonymous'}
+              </Link>
+              <div className="flex items-center gap-2 text-sm text-sand-500 mt-0.5 flex-wrap">
+                {poster?.rating_avg > 0 && (
+                  <span className="flex items-center gap-0.5">
+                    <Star className="h-3 w-3 text-gold-400 fill-gold-400" />
+                    {Number(poster.rating_avg).toFixed(1)}
+                    <span className="text-sand-400">({poster.rating_count})</span>
+                  </span>
+                )}
+                {poster?.city && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{poster.city}</span>}
+              </div>
             </div>
+            <Link
+              href={`/profile/${job.poster_id}`}
+              className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-cyprus-700 hover:underline"
+            >
+              View profile
+              <ExternalLink className="h-3 w-3" />
+            </Link>
           </div>
         </div>
 
@@ -194,8 +214,9 @@ export default async function JobDetailPage({ params }: Props) {
         )}
 
         {alreadyApplied && (
-          <div className="mt-8 rounded-xl bg-success-50 border border-success-500/20 p-4 text-sm text-success-600">
-            You have already sent an offer for this job.
+          <div className="mt-8 rounded-xl bg-cyprus-50 border border-cyprus-100 p-4 flex items-center gap-3 text-sm text-cyprus-700">
+            <Shield className="h-4 w-4 shrink-0" />
+            <span>Your offer has been sent. The poster will review it shortly.</span>
           </div>
         )}
 

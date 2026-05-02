@@ -103,7 +103,7 @@ export function Navbar() {
       </nav>
 
       {/* Bottom-bar spacer so content isn't hidden behind the bar on mobile */}
-      <div className="md:hidden h-[60px]" aria-hidden />
+      <div className="md:hidden h-15" aria-hidden />
     </>
   )
 }

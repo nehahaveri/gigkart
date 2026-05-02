@@ -164,7 +164,7 @@ export function JobChat({ jobId, currentUserId, otherName }: JobChatProps) {
                         ? 'bg-cyprus-700 text-white rounded-br-sm'
                         : 'bg-white border border-sand-200 text-sand-900 rounded-bl-sm'
                     )}>
-                      <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.body}</p>
+                      <p className="leading-relaxed whitespace-pre-wrap wrap-break-word">{msg.body}</p>
                       <p className={cn('text-[10px] mt-1', isOwn ? 'text-cyprus-200' : 'text-sand-400')}>
                         {formatRelativeTime(msg.created_at)}
                       </p>

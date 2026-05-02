@@ -21,7 +21,7 @@ const TRUST_META: Record<TrustTier, { label: string; icon: React.ReactNode; clas
   pro:     { label: 'Pro Tasker',  icon: <Award className="h-3.5 w-3.5" />, className: 'bg-cyprus-700 text-white',        desc: 'ID verified · 5+ jobs · ≥80% completion' },
   trusted: { label: 'Trusted',     icon: <Shield className="h-3.5 w-3.5" />, className: 'bg-success-100 text-success-700', desc: 'ID verified · has reviews' },
   new:     { label: 'New Member',  icon: <TrendingUp className="h-3.5 w-3.5" />, className: 'bg-sand-100 text-sand-600', desc: 'Getting started' },
-  caution: { label: 'Unverified',  icon: <AlertTriangle className="h-3.5 w-3.5" />, className: 'bg-amber-100 text-amber-700', desc: 'No ID or reviews yet' },
+  caution: { label: 'Unverified',  icon: <AlertTriangle className="h-3.5 w-3.5" />, className: 'bg-clay-50 text-clay-500', desc: 'No ID or reviews yet' },
 }
 
 function VerifyRow({ ok, label }: { ok: boolean; label: string }) {
@@ -42,7 +42,7 @@ function StarRating({ value }: { value: number }) {
       {[1, 2, 3, 4, 5].map((n) => (
         <Star
           key={n}
-          className={`h-3.5 w-3.5 ${n <= Math.round(value) ? 'fill-amber-400 text-amber-400' : 'text-sand-200'}`}
+          className={`h-3.5 w-3.5 ${n <= Math.round(value) ? 'fill-gold-400 text-gold-400' : 'text-sand-200'}`}
         />
       ))}
     </span>
@@ -91,7 +91,7 @@ export function VerificationCard({ user, role }: VerificationCardProps) {
           <h3 className="text-xs font-semibold text-sand-500 uppercase tracking-wide mb-2.5">Verifications</h3>
           <div className="space-y-2">
             <VerifyRow ok={!!user.phone} label="Phone number confirmed" />
-            <VerifyRow ok={!!user.aadhaar_verified} label="Government ID (Aadhaar)" />
+            <VerifyRow ok={!!user.aadhaar_verified} label={user.aadhaar_verified && user.aadhaar_last4 ? `Government ID ····${user.aadhaar_last4}` : 'Government ID (Aadhaar / Passport)'} />
             <VerifyRow ok={!!user.email} label="Email address" />
           </div>
         </div>

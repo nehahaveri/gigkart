@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/layout/navbar'
-import { PostJobForm } from './post-job-form'
+import { PostJobForm } from './form'
 import { BackButton } from '@/components/ui/back-button'
 
 export const metadata: Metadata = {

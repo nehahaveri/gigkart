@@ -18,6 +18,9 @@ export type BudgetType = 'fixed' | 'hourly' | 'negotiable'
 
 export type PaymentMode = 'escrow' | 'upfront' | '50_50_split'
 
+export type KycIdType = 'aadhaar' | 'passport' | 'driving_license'
+export type KycStatus = 'pending' | 'approved' | 'rejected'
+
 export interface User {
   id: string
   phone: string | null
@@ -27,12 +30,31 @@ export interface User {
   role: UserRole[]
   city: string | null
   aadhaar_verified: boolean
+  aadhaar_last4: string | null
   upi_id: string | null
   bank_account: string | null
+  skills: string[]
   rating_avg: number
   rating_count: number
   completion_rate: number
   created_at: string
+}
+
+export interface KycRequest {
+  id: string
+  user_id: string
+  legal_name: string
+  id_type: KycIdType
+  id_number_last4: string
+  front_url: string
+  back_url: string | null
+  selfie_url: string
+  status: KycStatus
+  rejection_reason: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  submitted_at: string
+  user?: User
 }
 
 export interface Job {
