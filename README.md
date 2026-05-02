@@ -1,36 +1,144 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GigKart
+
+A hyperlocal micro-gig marketplace where posters list short tasks (cleaning, tutoring, delivery, repairs) and taskers find, apply for, and complete them. Payments are held in Razorpay escrow and released only when the poster approves the work.
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 14 App Router + TypeScript |
+| Styling | Tailwind CSS + shadcn/ui |
+| Database | Supabase (Postgres + PostGIS + RLS) |
+| Auth | Supabase Auth (Google OAuth + Phone OTP via MSG91) |
+| Payments | Razorpay (escrow + UPI payouts via Razorpay Route) |
+| Realtime | Supabase Realtime (live chat) |
+| Storage | Supabase Storage (proof photos, KYC documents) |
+| Maps | Google Maps API (location search + radius filter) |
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure environment variables
+
+Copy `.env.local.example` to `.env.local` and fill in your keys:
+
+```bash
+cp .env.local.example .env.local
+```
+
+| Variable | Where to get it |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project → Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase project → Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase project → Settings → API |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay Dashboard → Settings → API Keys |
+| `NEXT_PUBLIC_RAZORPAY_KEY_ID` | Same as `RAZORPAY_KEY_ID` |
+| `MSG91_AUTH_KEY` | MSG91 Dashboard → API |
+| `NEXT_PUBLIC_GOOGLE_MAPS_KEY` | Google Cloud Console → Maps JS API |
+
+### 3. Run database migrations
+
+```bash
+supabase db push
+```
+
+Or apply the files in `supabase/migrations/` manually, in order.
+
+### 4. Start the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project Structure
 
-## Learn More
+```
+app/
+├── (auth)/          # Login, onboarding (no navbar)
+├── (dashboard)/     # All logged-in pages
+│   ├── jobs/        # Browse gigs + job detail + active/dispute/review
+│   ├── my-jobs/     # Poster's posted jobs + offer management
+│   ├── my-work/     # Tasker's accepted jobs
+│   ├── post-job/    # Create a new job listing
+│   ├── messages/    # Real-time job chat
+│   ├── settings/    # Profile, bank details, KYC verification
+│   └── rate/        # Leave a rating after job completion
+├── (admin)/         # Admin dashboard + KYC review queue
+└── api/             # Payment routes + Razorpay webhook
 
-To learn more about Next.js, take a look at the following resources:
+components/
+├── ui/              # shadcn primitives
+├── layout/          # Navbar, Footer
+├── jobs/            # JobCard
+├── messages/        # ConversationView, chat
+├── profile/         # VerificationCard (trust badge)
+└── payment/         # EscrowCheckout
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+lib/
+├── supabase/        # Server + client + middleware helpers
+├── razorpay/        # Razorpay Node SDK wrapper
+└── utils/           # cn(), formatters
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+supabase/migrations/ # All SQL schema files (apply in order)
+types/index.ts       # Shared TypeScript interfaces
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## User Roles
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Role | Can do |
+|---|---|
+| **Poster** | Post jobs, lock escrow, approve/dispute work |
+| **Tasker** | Browse jobs, send offers, submit proof, receive UPI payout |
+| **Admin** | Resolve disputes, review KYC submissions |
+
+> A single account can hold both Poster and Tasker roles simultaneously.
+
+---
+
+## Payment Flow
+
+```
+Poster accepts offer
+  → Razorpay order created → Poster pays (escrow locked)
+  → Tasker does work → submits proof photos
+  → Poster approves → Razorpay Route payout to tasker UPI
+                       (tasker receives 90%, 10% platform fee)
+  → OR no action in 48h → cron auto-releases payment
+  → OR dispute raised → admin reviews → manual resolution
+```
+
+---
+
+## Identity Verification (KYC)
+
+Taskers verify their identity via a 5-step flow at `/settings/verify`:
+
+1. Intro & what you need
+2. Legal name
+3. ID type (Aadhaar / Passport / Driving Licence) + last 4 digits
+4. Photo uploads (front, back, selfie with ID)
+5. Submitted — pending admin review at `/admin/kyc`
+
+---
+
+## Core Rules
+
+- All payment logic through **Razorpay only**
+- All DB access uses **Supabase client with RLS enforced**
+- Geo queries use **PostGIS** `ST_DWithin(location, point, radius_metres)`
+- Poster pays **0 fees** — tasker payout = `amount × 0.90`
+- Escrow **auto-releases 48 hrs** after proof submission (cron job)
+- Every `/jobs/[id]` page includes **JobPosting JSON-LD** for SEO
