@@ -1,37 +1,27 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { queryOne, execute } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { revalidatePath } from 'next/cache'
 
 export async function deleteJob(jobId: string) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
+  const session = await getSession()
+  if (!session) return { error: 'Not authenticated' }
 
-  // Verify ownership
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('poster_id, status')
-    .eq('id', jobId)
-    .single()
+  const job = await queryOne<{ poster_id: string; status: string }>(
+    'SELECT poster_id, status FROM jobs WHERE id = $1',
+    [jobId]
+  )
 
-  if (!job || job.poster_id !== user.id) return { error: 'Unauthorized' }
-
-  // Can only delete open jobs (no tasker assigned yet)
+  if (!job || job.poster_id !== session.userId) return { error: 'Unauthorized' }
   if (job.status !== 'open') {
     return { error: 'Only open jobs can be deleted. Use "Cancel" for jobs already in progress.' }
   }
 
-  // Delete the job — cascades to offers, messages
-  const { error } = await supabase
-    .from('jobs')
-    .delete()
-    .eq('id', jobId)
-    .eq('poster_id', user.id)
-
-  if (error) return { error: error.message }
+  await execute(
+    'DELETE FROM jobs WHERE id = $1 AND poster_id = $2',
+    [jobId, session.userId]
+  )
 
   revalidatePath('/my-jobs')
   revalidatePath('/jobs')

@@ -1,5 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { queryOne } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { ReviewApproval } from './approval'
 import { BackButton } from '@/components/ui/back-button'
@@ -11,36 +12,42 @@ export const metadata: Metadata = { title: 'Review & Approve Work' }
 
 export default async function ReviewPage({ params }: Props) {
   const { id } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  if (!user) redirect('/login')
-
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('id, title, budget, poster_id, status, escrow_payment_id')
-    .eq('id', id)
-    .single()
+  const job = await queryOne<{
+    id: string; title: string; budget: string; poster_id: string; status: string; escrow_payment_id: string | null
+  }>(
+    'SELECT id, title, budget, poster_id, status, escrow_payment_id FROM jobs WHERE id = $1',
+    [id]
+  )
 
   if (!job) notFound()
-  if (job.poster_id !== user.id) redirect('/dashboard')
+  if (job.poster_id !== session.userId) redirect('/dashboard')
 
-  const { data: assignment } = await supabase
-    .from('job_assignments')
-    .select('*, tasker:users!job_assignments_tasker_id_fkey(id, full_name, avatar_url)')
-    .eq('job_id', id)
-    .single()
+  const rawAssignment = await queryOne<Record<string, unknown>>(
+    `SELECT a.*, u.id AS t_id, u.full_name AS t_full_name, u.avatar_url AS t_avatar_url
+     FROM job_assignments a
+     JOIN users u ON u.id = a.tasker_id
+     WHERE a.job_id = $1`,
+    [id]
+  )
 
-  if (!assignment) notFound()
+  if (!rawAssignment) notFound()
 
-  // Check if tasker has a UPI ID — needed before payout can be released
-  const { data: taskerProfile } = await supabase
-    .from('users')
-    .select('upi_id')
-    .eq('id', assignment.tasker_id)
-    .single()
+  const assignment = {
+    ...rawAssignment,
+    tasker: {
+      id: rawAssignment.t_id,
+      full_name: rawAssignment.t_full_name,
+      avatar_url: rawAssignment.t_avatar_url,
+    },
+  }
+
+  const taskerProfile = await queryOne<{ upi_id: string | null }>(
+    'SELECT upi_id FROM users WHERE id = $1',
+    [rawAssignment.tasker_id as string]
+  )
 
   return (
     <>
@@ -50,8 +57,8 @@ export default async function ReviewPage({ params }: Props) {
           <BackButton href={`/jobs/${id}/active`} label="Back to job" />
         </div>
         <ReviewApproval
-          job={job}
-          assignment={assignment}
+          job={{ ...job, budget: Number(job.budget) }}
+          assignment={assignment as Parameters<typeof ReviewApproval>[0]['assignment']}
           taskerHasUpi={!!taskerProfile?.upi_id}
         />
       </div>

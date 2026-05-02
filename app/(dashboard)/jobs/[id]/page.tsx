@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { queryOne, count } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,7 +10,6 @@ import { formatCurrency, formatRelativeTime } from '@/lib/utils/format'
 import { MapPin, Clock, Users, Shield, Zap, Star, Calendar, IndianRupee, ExternalLink } from 'lucide-react'
 import { SendOfferForm } from './offer-form'
 import type { Metadata } from 'next'
-import type { User } from '@/types'
 
 const DURATION_LABELS: Record<string, string> = {
   few_hours: 'Few hours',
@@ -24,15 +24,11 @@ type Props = { params: Promise<{ id: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('title, category, address')
-    .eq('id', id)
-    .single()
-
+  const job = await queryOne<{ title: string; category: string; address: string | null }>(
+    'SELECT title, category, address FROM jobs WHERE id = $1',
+    [id]
+  )
   if (!job) return { title: 'Job not found' }
-
   return {
     title: `${job.title} — ${job.category}`,
     description: `${job.title} in ${job.address ?? 'your area'} on GigKart.`,
@@ -41,37 +37,51 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function JobDetailPage({ params }: Props) {
   const { id } = await params
-  const supabase = await createClient()
 
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('*, poster:users!jobs_poster_id_fkey(*)')
-    .eq('id', id)
-    .single()
-
-  if (!job) notFound()
-
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser()
-
-  const poster = job.poster as User
-  const isOwner = authUser?.id === job.poster_id
-
-  const { count: offerCount } = await supabase
-    .from('offers')
-    .select('*', { count: 'exact', head: true })
-    .eq('job_id', id)
-
-  let alreadyApplied = false
-  if (authUser && !isOwner) {
-    const { count } = await supabase
-      .from('offers')
-      .select('*', { count: 'exact', head: true })
-      .eq('job_id', id)
-      .eq('tasker_id', authUser.id)
-    alreadyApplied = (count ?? 0) > 0
+  type JobDetailRow = {
+    id: string; poster_id: string; title: string; description: string
+    category: string; sub_category: string | null; photos: string[]
+    duration_type: string; date_needed: string | null; address: string | null
+    is_remote: boolean; num_taskers: number; budget: string
+    budget_type: string; payment_mode: string; is_urgent: boolean
+    status: string; escrow_payment_id: string | null; created_at: string
+    p_id: string | null; p_full_name: string | null; p_avatar_url: string | null
+    p_rating_avg: string | null; p_rating_count: string | null; p_city: string | null
   }
+
+  const [jobRow, session] = await Promise.all([
+    queryOne<JobDetailRow>(
+      `SELECT j.*,
+              u.id AS p_id, u.full_name AS p_full_name, u.avatar_url AS p_avatar_url,
+              u.rating_avg AS p_rating_avg, u.rating_count AS p_rating_count, u.city AS p_city
+       FROM jobs j
+       LEFT JOIN users u ON u.id = j.poster_id
+       WHERE j.id = $1`,
+      [id]
+    ),
+    getSession(),
+  ])
+
+  if (!jobRow) notFound()
+
+  const job = { ...jobRow, budget: Number(jobRow.budget) }
+  const poster = {
+    id: jobRow.p_id,
+    full_name: jobRow.p_full_name,
+    avatar_url: jobRow.p_avatar_url,
+    rating_avg: Number(jobRow.p_rating_avg),
+    rating_count: Number(jobRow.p_rating_count),
+    city: jobRow.p_city,
+  }
+  const isOwner = session?.userId === job.poster_id
+
+  const [offerCount, alreadyAppliedCount] = await Promise.all([
+    count('SELECT COUNT(*) FROM offers WHERE job_id = $1', [id]),
+    session && !isOwner
+      ? count('SELECT COUNT(*) FROM offers WHERE job_id = $1 AND tasker_id = $2', [id, session.userId])
+      : Promise.resolve(0),
+  ])
+  const alreadyApplied = alreadyAppliedCount > 0
 
   return (
     <>
@@ -206,10 +216,10 @@ export default async function JobDetailPage({ params }: Props) {
         </div>
 
         {/* Send offer form */}
-        {authUser && !isOwner && job.status === 'open' && !alreadyApplied && (
+        {session && !isOwner && job.status === 'open' && !alreadyApplied && (
           <div className="mt-8">
             <h2 className="font-semibold text-sand-900 mb-3">Send your offer</h2>
-            <SendOfferForm jobId={id} suggestedBudget={job.budget} />
+            <SendOfferForm jobId={id} suggestedBudget={job.budget as number} />
           </div>
         )}
 
@@ -220,7 +230,7 @@ export default async function JobDetailPage({ params }: Props) {
           </div>
         )}
 
-        {!authUser && job.status === 'open' && (
+        {!session && job.status === 'open' && (
           <div className="mt-8">
             <Button asChild className="w-full">
               <a href="/login">Log in to send an offer</a>

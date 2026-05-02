@@ -1,0 +1,15 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- ⚠️  DEPRECATED — These migrations are NOT in use.
+-- ─────────────────────────────────────────────────────────────────────────────
+-- These files (001–005) were written for Supabase (hosted Postgres + Auth).
+-- GigKart has migrated to standalone PostgreSQL with custom JWT auth.
+-- Supabase has been completely removed from the stack.
+--
+-- ✅  ACTIVE SCHEMA: db/schema.sql
+--     Apply with:  psql -U postgres -d gigkart -f db/schema.sql
+--     Or via Docker Compose (runs automatically on `docker compose up`)
+--
+-- Do NOT run these migration files against the current database.
+-- They reference auth.users, RLS policies, and Supabase-specific functions
+-- that do not exist in the standalone Postgres setup.
+-- ─────────────────────────────────────────────────────────────────────────────

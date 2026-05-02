@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getSession } from '@/lib/auth/session'
+import { queryOne } from '@/lib/db'
 import { OnboardingWizard } from './wizard'
 
 export const metadata: Metadata = {
@@ -9,18 +10,13 @@ export const metadata: Metadata = {
 }
 
 export default async function OnboardingPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role, full_name')
-    .eq('id', user.id)
-    .single()
+  const profile = await queryOne<{ role: string[]; full_name: string | null }>(
+    'SELECT role, full_name FROM users WHERE id = $1',
+    [session.userId]
+  )
 
   // Already onboarded — send to dashboard
   if (profile?.full_name && profile.role?.length) {
@@ -29,7 +25,7 @@ export default async function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-sand-50 flex flex-col items-center justify-center px-4 py-12">
-      <OnboardingWizard userId={user.id} />
+      <OnboardingWizard userId={session.userId} />
     </div>
   )
 }

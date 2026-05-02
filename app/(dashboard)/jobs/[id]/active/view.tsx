@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -42,53 +42,19 @@ export function ActiveJobView({
   otherUser: Partial<User> | null
   currentUserId: string
 }) {
+  const router = useRouter()
   const [assignment, setAssignment] = useState(initialAssignment)
   const [currentJob, setCurrentJob] = useState(job)
   const [loading, setLoading] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const progress = getProgress(assignment)
 
-  // Real-time: job_assignments (proof, started, approved)
+  // Polling: refresh every 10s to pick up status changes from the other party
+  const refresh = useCallback(() => { router.refresh() }, [router])
   useEffect(() => {
-    const supabase = createClient()
-    const assignmentChannel = supabase
-      .channel(`assignment-${assignment.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'job_assignments',
-          filter: `id=eq.${assignment.id}`,
-        },
-        (payload) => {
-          setAssignment((prev) => ({ ...prev, ...payload.new }))
-        }
-      )
-      .subscribe()
-
-    // Real-time: jobs (cancel, complete) — reflects on both sides
-    const jobChannel = supabase
-      .channel(`job-${job.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'jobs',
-          filter: `id=eq.${job.id}`,
-        },
-        (payload) => {
-          setCurrentJob((prev) => ({ ...prev, ...payload.new }))
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(assignmentChannel)
-      supabase.removeChannel(jobChannel)
-    }
-  }, [assignment.id, job.id])
+    const interval = setInterval(refresh, 10_000)
+    return () => clearInterval(interval)
+  }, [refresh])
 
   async function handleStart() {
     setLoading(true)

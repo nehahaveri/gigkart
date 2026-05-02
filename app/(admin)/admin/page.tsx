@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { queryOne, count, query } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -11,51 +12,36 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = { title: 'Admin — GigKart' }
 
 export default async function AdminPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  if (!user) redirect('/login')
+  const profile = await queryOne<{ role: string[] }>(
+    'SELECT role FROM users WHERE id = $1',
+    [session.userId]
+  )
 
-  // Rudimentary admin gate via user metadata — replace with a role column in prod
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role, full_name')
-    .eq('id', user.id)
-    .single()
+  if (!profile?.role?.includes('admin')) redirect('/dashboard')
 
-  const roles = (profile?.role as string[] | null) ?? []
-  if (!roles.includes('admin')) {
-    redirect('/dashboard')
-  }
-
-  // High-level stats
-  const [
-    { count: totalUsers },
-    { count: totalJobs },
-    { count: openDisputes },
-    { count: pendingKyc },
-  ] = await Promise.all([
-    supabase.from('users').select('*', { count: 'exact', head: true }),
-    supabase.from('jobs').select('*', { count: 'exact', head: true }),
-    supabase.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
-    supabase.from('kyc_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+  const [totalUsers, totalJobs, openDisputes, pendingKyc, disputes] = await Promise.all([
+    count('SELECT COUNT(*) FROM users'),
+    count('SELECT COUNT(*) FROM jobs'),
+    count("SELECT COUNT(*) FROM disputes WHERE status = 'open'"),
+    count("SELECT COUNT(*) FROM kyc_requests WHERE status = 'pending'"),
+    query<{ id: string; reason: string; created_at: string; job_id: string; job_title: string }>(
+      `SELECT d.id, d.reason, d.created_at, j.id AS job_id, j.title AS job_title
+       FROM disputes d
+       JOIN jobs j ON j.id = d.job_id
+       WHERE d.status = 'open'
+       ORDER BY d.created_at DESC
+       LIMIT 10`
+    ),
   ])
 
-  // Open disputes list
-  const { data: disputes } = await supabase
-    .from('disputes')
-    .select('id, reason, created_at, job:jobs!disputes_job_id_fkey(id, title)')
-    .eq('status', 'open')
-    .order('created_at', { ascending: false })
-    .limit(10)
-
   const stats = [
-    { label: 'Total users',     value: totalUsers ?? 0,   icon: Users,         color: 'text-cyprus-700' },
-    { label: 'Total jobs',      value: totalJobs ?? 0,    icon: Briefcase,     color: 'text-cyprus-700' },
-    { label: 'Open disputes',   value: openDisputes ?? 0, icon: AlertTriangle, color: 'text-clay-500' },
-    { label: 'Pending KYC',     value: pendingKyc ?? 0,   icon: Shield,        color: 'text-sand-500' },
+    { label: 'Total users',   value: totalUsers,   icon: Users,         color: 'text-cyprus-700' },
+    { label: 'Total jobs',    value: totalJobs,    icon: Briefcase,     color: 'text-cyprus-700' },
+    { label: 'Open disputes', value: openDisputes, icon: AlertTriangle, color: 'text-clay-500' },
+    { label: 'Pending KYC',  value: pendingKyc,   icon: Shield,        color: 'text-sand-500' },
   ]
 
   return (
@@ -94,21 +80,19 @@ export default async function AdminPage() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-sand-900 tracking-tight">Open Disputes</h2>
-              {openDisputes && openDisputes > 0 && (
+              {openDisputes > 0 && (
                 <Badge variant="urgent">{openDisputes} open</Badge>
               )}
             </div>
 
-            {(!disputes || disputes.length === 0) ? (
+            {(disputes.length === 0) ? (
               <div className="rounded-2xl bg-white border border-sand-200 p-10 text-center">
                 <Shield className="h-10 w-10 text-success-500 mx-auto mb-3" />
                 <p className="text-sm text-sand-600 font-medium">No open disputes — all clear!</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {disputes.map((d) => {
-                  const job = d.job as unknown as { id: string; title: string } | null
-                  return (
+                {disputes.map((d) => (
                     <div
                       key={d.id}
                       className="flex items-center gap-4 rounded-2xl bg-white border border-sand-200 px-5 py-4"
@@ -116,18 +100,17 @@ export default async function AdminPage() {
                       <AlertTriangle className="h-5 w-5 text-clay-400 shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-sand-900 truncate">
-                          {job?.title ?? 'Unknown job'}
+                          {d.job_title ?? 'Unknown job'}
                         </div>
                         <div className="text-xs text-sand-500 mt-0.5">{d.reason}</div>
                       </div>
                       <Button size="sm" variant="outline" asChild>
-                        <Link href={`/jobs/${job?.id}/dispute`}>
+                        <Link href={`/jobs/${d.job_id}/dispute`}>
                           Review
                         </Link>
                       </Button>
                     </div>
-                  )
-                })}
+                  ))}
               </div>
             )}
           </section>

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { PostJobForm } from './form'
 import { BackButton } from '@/components/ui/back-button'
@@ -11,12 +11,8 @@ export const metadata: Metadata = {
 }
 
 export default async function PostJobPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
+  const session = await getSession()
+  if (!session) redirect('/login')
 
   return (
     <>

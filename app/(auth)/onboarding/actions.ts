@@ -1,6 +1,7 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { execute } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
@@ -20,11 +21,8 @@ export async function completeOnboarding(
   _prev: unknown,
   formData: FormData
 ): Promise<{ errors?: Record<string, string> }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { errors: { _: 'Not authenticated' } }
+  const session = await getSession()
+  if (!session) return { errors: { _: 'Not authenticated' } }
 
   const role = formData.get('role') as string
 
@@ -41,11 +39,10 @@ export async function completeOnboarding(
       }
       return { errors }
     }
-    const { error } = await supabase
-      .from('users')
-      .update({ full_name: parsed.data.full_name, city: parsed.data.city, role: ['poster'], skills: [] })
-      .eq('id', user.id)
-    if (error) return { errors: { _: error.message } }
+    await execute(
+      `UPDATE users SET full_name = $1, city = $2, role = $3, skills = $4 WHERE id = $5`,
+      [parsed.data.full_name, parsed.data.city, ['poster'], [], session.userId]
+    )
   } else {
     const skillsRaw = formData.get('skills') as string
     const raw = {
@@ -63,19 +60,20 @@ export async function completeOnboarding(
       return { errors }
     }
     const dbRole = role === 'both' ? ['poster', 'tasker'] : ['tasker']
-    const { error } = await supabase
-      .from('users')
-      .update({
-        full_name: parsed.data.full_name,
-        city: parsed.data.city,
-        skills: parsed.data.skills,
-        ...(parsed.data.upi_id ? { upi_id: parsed.data.upi_id } : {}),
-        role: dbRole,
-      })
-      .eq('id', user.id)
-    if (error) return { errors: { _: error.message } }
+    await execute(
+      `UPDATE users
+         SET full_name = $1, city = $2, skills = $3, upi_id = $4, role = $5
+       WHERE id = $6`,
+      [
+        parsed.data.full_name,
+        parsed.data.city,
+        parsed.data.skills,
+        parsed.data.upi_id || null,
+        dbRole,
+        session.userId,
+      ]
+    )
   }
 
   redirect('/dashboard')
 }
-

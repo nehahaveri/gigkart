@@ -1,16 +1,13 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { queryOne, execute } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 
 const RAZORPAY_CONFIGURED =
   !!process.env.RAZORPAY_KEY_ID && !!process.env.RAZORPAY_KEY_SECRET
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const session = await getSession()
+  if (!session) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
@@ -21,17 +18,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'job_id is required' }, { status: 400 })
   }
 
-  const { data: job, error: jobError } = await supabase
-    .from('jobs')
-    .select('id, poster_id, budget, title, status')
-    .eq('id', job_id)
-    .single()
+  const job = await queryOne<{ id: string; poster_id: string; budget: string; title: string; status: string }>(
+    'SELECT id, poster_id, budget, title, status FROM jobs WHERE id = $1',
+    [job_id]
+  )
 
-  if (jobError || !job) {
+  if (!job) {
     return NextResponse.json({ error: 'Job not found' }, { status: 404 })
   }
 
-  if (job.poster_id !== user.id) {
+  if (job.poster_id !== session.userId) {
     return NextResponse.json({ error: 'Only the poster can pay' }, { status: 403 })
   }
 
@@ -40,14 +36,12 @@ export async function POST(request: Request) {
   }
 
   // Test mode — Razorpay not configured. Mark the job as escrow-funded
-  // with a fake payment id so the rest of the flow proceeds normally.
   if (!RAZORPAY_CONFIGURED) {
     const fakePaymentId = `test_payment_${Date.now()}`
-    await supabase
-      .from('jobs')
-      .update({ escrow_payment_id: fakePaymentId })
-      .eq('id', job.id)
-
+    await execute(
+      'UPDATE jobs SET escrow_payment_id = $1 WHERE id = $2',
+      [fakePaymentId, job.id]
+    )
     return NextResponse.json({
       test_mode: true,
       success: true,
@@ -57,9 +51,9 @@ export async function POST(request: Request) {
   }
 
   // Real Razorpay flow
-  const { getRazorpay } = await import('@/lib/razorpay/client')
+  const { getRazorpay } = await import('@/lib/payments/razorpay')
   const razorpay = getRazorpay()
-  const amountPaise = Math.round(job.budget * 100)
+  const amountPaise = Math.round(Number(job.budget) * 100)
 
   const order = await razorpay.orders.create({
     amount: amountPaise,
@@ -67,7 +61,7 @@ export async function POST(request: Request) {
     receipt: `job_${job.id}`,
     notes: {
       job_id: job.id,
-      poster_id: user.id,
+      poster_id: session.userId,
       purpose: 'escrow',
     },
   })

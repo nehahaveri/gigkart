@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { queryOne } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { BackButton } from '@/components/ui/back-button'
 import { KycWizard } from './wizard'
@@ -12,24 +13,19 @@ export const metadata: Metadata = {
 }
 
 export default async function VerifyPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('full_name, aadhaar_verified')
-    .eq('id', user.id)
-    .single()
-
-  const { data: kycRequest } = await supabase
-    .from('kyc_requests')
-    .select('*')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  const [profile, kycRequest] = await Promise.all([
+    queryOne<{ full_name: string | null; aadhaar_verified: boolean }>(
+      'SELECT full_name, aadhaar_verified FROM users WHERE id = $1',
+      [session.userId]
+    ),
+    queryOne<KycRequest>(
+      'SELECT * FROM kyc_requests WHERE user_id = $1',
+      [session.userId]
+    ),
+  ])
 
   return (
     <>

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { query, queryOne } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,62 +14,77 @@ import type { Metadata } from 'next'
 
 type Props = { params: Promise<{ id: string }> }
 
+type UserProfile = {
+  id: string
+  full_name: string
+  city: string | null
+  role: string[]
+  aadhaar_verified: boolean
+  rating_avg: string
+  rating_count: number
+  completion_rate: string
+  created_at: string
+}
+
+type ReviewRow = {
+  id: string
+  overall_rating: string
+  quality_rating: string
+  punctuality_rating: string
+  communication_rating: string
+  text: string | null
+  created_at: string
+  reviewer_id: string
+  reviewer_name: string
+  reviewer_avatar: string | null
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('users')
-    .select('full_name, city')
-    .eq('id', id)
-    .single()
-
-  if (!data) return { title: 'Profile not found' }
+  const u = await queryOne<{ full_name: string; city: string | null }>(
+    'SELECT full_name, city FROM users WHERE id = $1',
+    [id]
+  )
+  if (!u) return { title: 'Profile not found' }
   return {
-    title: `${data.full_name} — GigKart`,
-    description: `${data.full_name}'s profile on GigKart${data.city ? ` in ${data.city}` : ''}.`,
+    title: `${u.full_name} — GigKart`,
+    description: `${u.full_name}'s profile on GigKart${u.city ? ` in ${u.city}` : ''}.`,
   }
 }
 
 export default async function ProfilePage({ params }: Props) {
   const { id } = await params
-  const supabase = await createClient()
 
-  const { data: profile } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', id)
-    .single()
+  const [profile, session] = await Promise.all([
+    queryOne<UserProfile>('SELECT * FROM users WHERE id = $1', [id]),
+    getSession(),
+  ])
 
   if (!profile) notFound()
 
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser()
-  const isOwnProfile = authUser?.id === id
+  const isOwnProfile = session?.userId === id
 
-  // Reviews received (revealed only)
-  const { data: reviews } = await supabase
-    .from('reviews')
-    .select('*, reviewer:users!reviews_reviewer_id_fkey(id, full_name, avatar_url)')
-    .eq('reviewee_id', id)
-    .not('revealed_at', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(20)
-
-  // Counts: completed jobs as tasker, jobs posted as poster
-  const [{ count: completedCount }, { count: postedCount }] = await Promise.all([
-    supabase
-      .from('job_assignments')
-      .select('*', { count: 'exact', head: true })
-      .eq('tasker_id', id)
-      .not('approved_at', 'is', null),
-    supabase
-      .from('jobs')
-      .select('*', { count: 'exact', head: true })
-      .eq('poster_id', id),
+  const [reviews, completedCount, postedCount] = await Promise.all([
+    query<ReviewRow>(
+      `SELECT r.*,
+              u.id AS reviewer_id, u.full_name AS reviewer_name, u.avatar_url AS reviewer_avatar
+       FROM reviews r
+       JOIN users u ON u.id = r.reviewer_id
+       WHERE r.reviewee_id = $1 AND r.revealed_at IS NOT NULL
+       ORDER BY r.created_at DESC LIMIT 20`,
+      [id]
+    ),
+    queryOne<{ cnt: string }>(
+      'SELECT COUNT(*)::text AS cnt FROM job_assignments WHERE tasker_id = $1 AND approved_at IS NOT NULL',
+      [id]
+    ),
+    queryOne<{ cnt: string }>(
+      'SELECT COUNT(*)::text AS cnt FROM jobs WHERE poster_id = $1',
+      [id]
+    ),
   ])
 
-  const roles = (profile.role as string[]) ?? []
+  const roles = profile.role ?? []
   const initials = (profile.full_name ?? '?')
     .split(' ')
     .map((s: string) => s[0])
@@ -81,7 +97,7 @@ export default async function ProfilePage({ params }: Props) {
       <Navbar />
       <main className="min-h-screen bg-sand">
 
-        {/* ── Cover band ──────────────────────────────────── */}
+        {/* Cover band */}
         <div className="relative h-36 md:h-44 bg-cyprus-700 overflow-hidden">
           <div className="pointer-events-none absolute -top-20 -right-20 h-72 w-72 rounded-full bg-cyprus-500/30 blur-3xl" aria-hidden />
           <div className="pointer-events-none absolute -bottom-32 -left-32 h-72 w-72 rounded-full bg-clay-400/15 blur-3xl" aria-hidden />
@@ -89,19 +105,15 @@ export default async function ProfilePage({ params }: Props) {
 
         <div className="mx-auto max-w-3xl px-4 pb-16">
 
-          {/* ── Back link — sits just below the cover on sand bg ── */}
           <div className="pt-4 pb-1">
             {!isOwnProfile && <BackButton href="/jobs" label="Back" />}
           </div>
 
-          {/* ── Avatar row — only the avatar overlaps the cover ── */}
+          {/* Avatar row */}
           <div className="flex items-end justify-between -mt-14 mb-5 flex-wrap gap-3">
-            {/* Avatar */}
             <div className="relative z-10 h-28 w-28 md:h-32 md:w-32 rounded-3xl bg-sand-50 border-[3px] border-sand shadow-xl flex items-center justify-center text-cyprus-700 font-bold text-4xl select-none shrink-0">
               {initials}
             </div>
-
-            {/* Edit button — pushed to the right, sits on sand bg */}
             {isOwnProfile && (
               <Button variant="outline" asChild className="gap-1.5 mb-1">
                 <Link href="/settings">
@@ -112,7 +124,7 @@ export default async function ProfilePage({ params }: Props) {
             )}
           </div>
 
-          {/* ── Name + meta — fully on sand background ──────── */}
+          {/* Name + meta */}
           <div className="mb-8">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl md:text-3xl font-bold text-sand-900 tracking-tight">
@@ -152,12 +164,12 @@ export default async function ProfilePage({ params }: Props) {
               />
               <Stat
                 icon={<Award className="h-4 w-4 text-cyprus-700" />}
-                value={String(completedCount ?? 0)}
+                value={completedCount?.cnt ?? '0'}
                 label="Jobs completed"
               />
               <Stat
                 icon={<Briefcase className="h-4 w-4 text-cyprus-700" />}
-                value={String(postedCount ?? 0)}
+                value={postedCount?.cnt ?? '0'}
                 label="Jobs posted"
               />
               <Stat
@@ -172,12 +184,12 @@ export default async function ProfilePage({ params }: Props) {
           <section>
             <div className="flex items-baseline justify-between mb-6">
               <h2 className="text-xl font-bold text-sand-900 tracking-tight">Reviews</h2>
-              {reviews && reviews.length > 0 && (
+              {reviews.length > 0 && (
                 <span className="text-sm text-sand-500">{reviews.length} most recent</span>
               )}
             </div>
 
-            {(!reviews || reviews.length === 0) ? (
+            {reviews.length === 0 ? (
               <div className="rounded-2xl bg-white border border-sand-200 p-10 text-center">
                 <Star className="h-10 w-10 text-sand-300 mx-auto mb-3" />
                 <p className="text-sm text-sand-600">No reviews yet.</p>
@@ -190,19 +202,18 @@ export default async function ProfilePage({ params }: Props) {
             ) : (
               <div className="space-y-3">
                 {reviews.map((review) => {
-                  const reviewer = review.reviewer as { id: string; full_name: string; avatar_url: string | null }
-                  const initial = reviewer?.full_name?.[0]?.toUpperCase() ?? '?'
+                  const initial = review.reviewer_name?.[0]?.toUpperCase() ?? '?'
                   return (
                     <div key={review.id} className="rounded-2xl bg-white border border-sand-200 p-5">
                       <div className="flex items-center gap-3 mb-3">
-                        <Link href={`/profile/${reviewer?.id}`}>
+                        <Link href={`/profile/${review.reviewer_id}`}>
                           <div className="h-10 w-10 rounded-full bg-cyprus-50 border border-sand-200 flex items-center justify-center text-cyprus-700 font-bold text-sm">
                             {initial}
                           </div>
                         </Link>
                         <div className="flex-1">
-                          <Link href={`/profile/${reviewer?.id}`} className="font-semibold text-sm text-sand-900 hover:underline">
-                            {reviewer?.full_name ?? 'Anonymous'}
+                          <Link href={`/profile/${review.reviewer_id}`} className="font-semibold text-sm text-sand-900 hover:underline">
+                            {review.reviewer_name ?? 'Anonymous'}
                           </Link>
                           <div className="text-xs text-sand-500 mt-0.5">{formatRelativeTime(review.created_at)}</div>
                         </div>

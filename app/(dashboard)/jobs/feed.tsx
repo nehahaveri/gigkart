@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { JobCard } from '@/components/jobs/job-card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/cn'
@@ -52,39 +51,43 @@ export function JobsFeed() {
   useEffect(() => {
     let cancelled = false
     pageRef.current = 0
-    const supabase = createClient()
     setLoading(true)
 
     const lat = userCoords?.lat ?? 19.076
     const lng = userCoords?.lng ?? 72.8777
-    const radiusKm = activeFilters.has('near') ? 5 : 50
+    const radiusKm = activeFilters.has('near') ? 5 : (activeFilters.has('remote') ? 99999 : 50)
 
-    supabase.rpc('nearby_jobs', {
-      lat, lng,
-      radius_km: activeFilters.has('remote') ? 99999 : radiusKm,
-      p_category: category || null,
-      p_limit: PAGE_SIZE, p_offset: 0,
-    }).then(({ data, error }) => {
-      if (cancelled) return
-      if (error) { setLoading(false); return }
-      let filtered = (data ?? []) as Job[]
-      if (activeFilters.has('today')) {
-        const todayStr = new Date().toISOString().slice(0, 10)
-        filtered = filtered.filter((j) => j.date_needed?.startsWith(todayStr))
-      }
-      if (activeFilters.has('remote')) filtered = filtered.filter((j) => j.is_remote)
-      if (activeFilters.has('high_pay')) filtered = filtered.filter((j) => j.budget >= 1000)
-      if (activeFilters.has('urgent')) filtered = filtered.filter((j) => j.is_urgent)
-      if (keyword.trim()) {
-        const kw = keyword.toLowerCase()
-        filtered = filtered.filter(
-          (j) => j.title.toLowerCase().includes(kw) || j.description.toLowerCase().includes(kw)
-        )
-      }
-      setJobs(filtered)
-      setHasMore(filtered.length === PAGE_SIZE)
-      setLoading(false)
+    const params = new URLSearchParams({
+      lat: String(lat), lng: String(lng),
+      radius_km: String(radiusKm),
+      limit: String(PAGE_SIZE), offset: '0',
     })
+    if (category) params.set('category', category)
+
+    fetch(`/api/jobs?${params}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return
+        let filtered = (data ?? []) as Job[]
+        if (activeFilters.has('today')) {
+          const todayStr = new Date().toISOString().slice(0, 10)
+          filtered = filtered.filter((j) => j.date_needed?.startsWith(todayStr))
+        }
+        if (activeFilters.has('remote')) filtered = filtered.filter((j) => j.is_remote)
+        if (activeFilters.has('high_pay')) filtered = filtered.filter((j) => j.budget >= 1000)
+        if (activeFilters.has('urgent')) filtered = filtered.filter((j) => j.is_urgent)
+        if (keyword.trim()) {
+          const kw = keyword.toLowerCase()
+          filtered = filtered.filter(
+            (j) => j.title.toLowerCase().includes(kw) || j.description.toLowerCase().includes(kw)
+          )
+        }
+        setJobs(filtered)
+        setHasMore(filtered.length === PAGE_SIZE)
+        setLoading(false)
+      })
+      .catch(() => { if (!cancelled) setLoading(false) })
+
     return () => { cancelled = true }
   }, [userCoords, category, activeFilters, keyword])
 
@@ -99,14 +102,16 @@ export function JobsFeed() {
   async function loadMore() {
     setLoading(true)
     pageRef.current += 1
-    const supabase = createClient()
-    const { data } = await supabase.rpc('nearby_jobs', {
-      lat: userCoords?.lat ?? 19.076, lng: userCoords?.lng ?? 72.8777,
-      radius_km: activeFilters.has('near') ? 5 : 50,
-      p_category: category || null,
-      p_limit: PAGE_SIZE, p_offset: pageRef.current * PAGE_SIZE,
+    const params = new URLSearchParams({
+      lat: String(userCoords?.lat ?? 19.076),
+      lng: String(userCoords?.lng ?? 72.8777),
+      radius_km: String(activeFilters.has('near') ? 5 : 50),
+      limit: String(PAGE_SIZE),
+      offset: String(pageRef.current * PAGE_SIZE),
     })
-    const more = (data ?? []) as Job[]
+    if (category) params.set('category', category)
+    const res = await fetch(`/api/jobs?${params}`)
+    const more = (res.ok ? await res.json() : []) as Job[]
     setJobs((prev) => [...prev, ...more])
     setHasMore(more.length === PAGE_SIZE)
     setLoading(false)

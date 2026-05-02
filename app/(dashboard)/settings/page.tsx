@@ -1,24 +1,24 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { query, queryOne } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { SettingsForm } from './form'
 import { BackButton } from '@/components/ui/back-button'
 import type { Metadata } from 'next'
-import type { KycRequest } from '@/types'
+import type { KycRequest, User } from '@/types'
 
 export const metadata: Metadata = { title: 'Settings' }
 
 export default async function SettingsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  if (!user) redirect('/login')
-
-  const [{ data: profile }, { data: kycRequest }] = await Promise.all([
-    supabase.from('users').select('*').eq('id', user.id).single(),
-    supabase.from('kyc_requests').select('*').eq('user_id', user.id).maybeSingle(),
+  const [profile, kycRequest] = await Promise.all([
+    queryOne<User>('SELECT * FROM users WHERE id = $1', [session.userId]),
+    queryOne<KycRequest>(
+      'SELECT * FROM kyc_requests WHERE user_id = $1',
+      [session.userId]
+    ),
   ])
 
   return (
@@ -32,9 +32,9 @@ export default async function SettingsPage() {
         <p className="text-sm text-sand-500 mb-6">Manage your profile, payouts, and account.</p>
         <SettingsForm
           profile={profile}
-          email={user.email ?? null}
-          phone={user.phone ?? null}
-          kycRequest={kycRequest as KycRequest | null}
+          email={profile?.email ?? null}
+          phone={profile?.phone ?? null}
+          kycRequest={kycRequest}
         />
       </div>
     </>

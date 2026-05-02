@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { query } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { MyJobsList } from './list'
 
@@ -10,21 +11,30 @@ export const metadata: Metadata = {
 }
 
 export default async function MyJobsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  if (!user) redirect('/login')
+  const rawJobs = await query<{
+    id: string; title: string; category: string; budget: string; budget_type: string
+    status: string; is_urgent: boolean; created_at: string; offer_count: string
+  }>(
+    `SELECT j.id, j.title, j.category, j.budget, j.budget_type, j.status,
+            j.is_urgent, j.created_at, COUNT(o.id)::text AS offer_count
+     FROM jobs j
+     LEFT JOIN offers o ON o.job_id = j.id
+     WHERE j.poster_id = $1
+     GROUP BY j.id
+     ORDER BY j.created_at DESC`,
+    [session.userId]
+  )
 
-  const { data: jobs } = await supabase
-    .from('jobs')
-    .select(`
-      *,
-      offers:offers(count)
-    `)
-    .eq('poster_id', user.id)
-    .order('created_at', { ascending: false })
+  // Shape data to match MyJobsList's expected { offers: [{ count }] } format
+  const jobs = rawJobs.map((j) => ({
+    ...j,
+    budget: Number(j.budget),
+    status: j.status as import('@/types').JobStatus,
+    offers: [{ count: Number(j.offer_count) }],
+  }))
 
   return (
     <>

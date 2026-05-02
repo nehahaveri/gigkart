@@ -1,9 +1,11 @@
 import { redirect, notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { queryOne } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { ActiveJobView } from './view'
 import { BackButton } from '@/components/ui/back-button'
 import type { Metadata } from 'next'
+import type { Job, JobAssignment, User } from '@/types'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -14,38 +16,26 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ActiveJobPage({ params }: Props) {
   const { id } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  if (!user) redirect('/login')
-
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('*')
-    .eq('id', id)
-    .single()
+  const [job, assignment] = await Promise.all([
+    queryOne<Job>('SELECT * FROM jobs WHERE id = $1', [id]),
+    queryOne<JobAssignment>('SELECT * FROM job_assignments WHERE job_id = $1', [id]),
+  ])
 
   if (!job) notFound()
-
-  const { data: assignment } = await supabase
-    .from('job_assignments')
-    .select('*')
-    .eq('job_id', id)
-    .single()
-
   if (!assignment) notFound()
 
-  const isPoster = user.id === job.poster_id
-  const isTasker = user.id === assignment.tasker_id
+  const isPoster = session.userId === job.poster_id
+  const isTasker = session.userId === assignment.tasker_id
   if (!isPoster && !isTasker) redirect('/dashboard')
 
-  const { data: otherUser } = await supabase
-    .from('users')
-    .select('id, full_name, avatar_url, rating_avg, city')
-    .eq('id', isPoster ? assignment.tasker_id : job.poster_id)
-    .single()
+  const otherUserId = isPoster ? assignment.tasker_id : job.poster_id
+  const otherUser = await queryOne<Partial<User>>(
+    'SELECT id, full_name, avatar_url, city FROM users WHERE id = $1',
+    [otherUserId as string]
+  )
 
   return (
     <>
@@ -55,11 +45,11 @@ export default async function ActiveJobPage({ params }: Props) {
           <BackButton href={isPoster ? '/my-jobs' : '/my-work'} label={isPoster ? 'My Postings' : 'My Gigs'} />
         </div>
         <ActiveJobView
-          job={job}
-          assignment={assignment}
+          job={job as unknown as Job}
+          assignment={assignment as unknown as JobAssignment}
           isPoster={isPoster}
           otherUser={otherUser}
-          currentUserId={user.id}
+          currentUserId={session.userId}
         />
       </div>
     </>

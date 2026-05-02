@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { execute, queryOne } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { createHmac } from 'crypto'
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const session = await getSession()
+  if (!session) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
@@ -29,16 +26,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid payment signature' }, { status: 400 })
   }
 
-  // Update job with escrow payment id
-  const { error } = await supabase
-    .from('jobs')
-    .update({ escrow_payment_id: razorpay_payment_id })
-    .eq('id', job_id)
-    .eq('poster_id', user.id)
+  const job = await queryOne<{ poster_id: string }>(
+    'SELECT poster_id FROM jobs WHERE id = $1',
+    [job_id]
+  )
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!job) {
+    return NextResponse.json({ error: 'Job not found' }, { status: 404 })
   }
+
+  if (job.poster_id !== session.userId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  await execute(
+    'UPDATE jobs SET escrow_payment_id = $1 WHERE id = $2',
+    [razorpay_payment_id, job_id]
+  )
 
   return NextResponse.json({ success: true })
 }

@@ -1,5 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { queryOne, query } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { OffersList } from './list'
 import { BackButton } from '@/components/ui/back-button'
@@ -14,27 +15,46 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function OffersPage({ params }: Props) {
   const { id } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  if (!user) redirect('/login')
-
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('id, title, budget, budget_type, status, poster_id')
-    .eq('id', id)
-    .single()
+  const job = await queryOne<{
+    id: string; title: string; budget: string; budget_type: string; status: string; poster_id: string
+  }>(
+    'SELECT id, title, budget, budget_type, status, poster_id FROM jobs WHERE id = $1',
+    [id]
+  )
 
   if (!job) notFound()
-  if (job.poster_id !== user.id) redirect('/my-jobs')
+  if (job.poster_id !== session.userId) redirect('/my-jobs')
 
-  const { data: offers } = await supabase
-    .from('offers')
-    .select('*, tasker:users!offers_tasker_id_fkey(*)')
-    .eq('job_id', id)
-    .order('created_at', { ascending: false })
+  const rawOffers = await query<Record<string, unknown>>(
+    `SELECT o.*,
+            u.id AS t_id, u.full_name AS t_full_name, u.avatar_url AS t_avatar_url,
+            u.rating_avg AS t_rating_avg, u.rating_count AS t_rating_count,
+            u.completion_rate AS t_completion_rate, u.aadhaar_verified AS t_aadhaar_verified,
+            u.city AS t_city
+     FROM offers o
+     JOIN users u ON u.id = o.tasker_id
+     WHERE o.job_id = $1
+     ORDER BY o.created_at DESC`,
+    [id]
+  )
+
+  const offers = rawOffers.map((o) => ({
+    ...o,
+    price: Number(o.price),
+    tasker: {
+      id: o.t_id,
+      full_name: o.t_full_name,
+      avatar_url: o.t_avatar_url,
+      rating_avg: Number(o.t_rating_avg),
+      rating_count: Number(o.t_rating_count),
+      completion_rate: Number(o.t_completion_rate),
+      aadhaar_verified: o.t_aadhaar_verified,
+      city: o.t_city,
+    },
+  }))
 
   return (
     <>
@@ -44,10 +64,10 @@ export default async function OffersPage({ params }: Props) {
           <BackButton href="/my-jobs" label="My Postings" />
           <h1 className="text-2xl font-bold text-sand-900 mt-3">{job.title}</h1>
           <p className="text-sm text-sand-500 mt-1">
-            {(offers ?? []).length} offer{(offers ?? []).length !== 1 ? 's' : ''} received
+            {offers.length} offer{offers.length !== 1 ? 's' : ''} received
           </p>
         </div>
-        <OffersList offers={offers ?? []} jobId={id} jobStatus={job.status} />
+        <OffersList offers={offers as Parameters<typeof OffersList>[0]['offers']} jobId={id} jobStatus={job.status} />
       </div>
     </>
   )

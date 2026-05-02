@@ -1,24 +1,70 @@
 services:
+
+  # ── PostgreSQL + PostGIS ──────────────────────────────────────────────────
+  db:
+    image: postgis/postgis:15-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gigkart
+      POSTGRES_USER: gigkart
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # Port exposed so you can connect with psql / pgAdmin locally
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gigkart -d gigkart"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Schema migration (runs once, then exits) ─────────────────────────────
+  migrate:
+    image: postgis/postgis:15-3.4
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./db/schema.sql:/schema.sql:ro
+    command: >
+      psql -h db -U gigkart -d gigkart -f /schema.sql
+
+  # ── Next.js application ───────────────────────────────────────────────────
   app:
     build:
       context: .
       dockerfile: Dockerfile
-      # NEXT_PUBLIC_* must be passed at build time — Next.js inlines them into the bundle
+      # NEXT_PUBLIC_* vars are inlined into the browser bundle at build time.
+      # Default to empty string so local dev builds work without real keys.
       args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        NEXT_PUBLIC_RAZORPAY_KEY_ID: ${NEXT_PUBLIC_RAZORPAY_KEY_ID}
-        NEXT_PUBLIC_GOOGLE_MAPS_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_KEY}
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+        NEXT_PUBLIC_RAZORPAY_KEY_ID: ${NEXT_PUBLIC_RAZORPAY_KEY_ID:-}
+        NEXT_PUBLIC_GOOGLE_MAPS_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_KEY:-}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     ports:
-      - "3001:3000"
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
-      # Server-only secrets — never baked into the image
-      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
-      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
-      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
-      MSG91_AUTH_KEY: ${MSG91_AUTH_KEY}
-      MSG91_TEMPLATE_ID: ${MSG91_TEMPLATE_ID}
-      MSG91_SENDER_ID: ${MSG91_SENDER_ID}
-      MSG91_WHATSAPP_AUTH_KEY: ${MSG91_WHATSAPP_AUTH_KEY}
+      # Database — server-only, never baked into the image
+      DATABASE_URL: postgresql://gigkart:${POSTGRES_PASSWORD}@db:5432/gigkart
+      # JWT session signing secret — must be at least 32 characters
+      AUTH_SECRET: ${AUTH_SECRET}
+      # Razorpay — leave blank to run in test/simulation mode
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      # MSG91 (WhatsApp notifications — optional, leave blank to skip)
+      MSG91_AUTH_KEY: ${MSG91_AUTH_KEY:-}
+      MSG91_TEMPLATE_ID: ${MSG91_TEMPLATE_ID:-}
+      MSG91_SENDER_ID: ${MSG91_SENDER_ID:-GIGKRT}
+      MSG91_WHATSAPP_AUTH_KEY: ${MSG91_WHATSAPP_AUTH_KEY:-}
     restart: unless-stopped
+
+volumes:
+  db-data:

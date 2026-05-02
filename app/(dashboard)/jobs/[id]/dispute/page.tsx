@@ -1,5 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { queryOne } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { DisputeForm } from './form'
 import { BackButton } from '@/components/ui/back-button'
@@ -11,37 +12,28 @@ export const metadata: Metadata = { title: 'Raise a Dispute' }
 
 export default async function DisputePage({ params }: Props) {
   const { id } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  if (!user) redirect('/login')
-
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('id, title, poster_id')
-    .eq('id', id)
-    .single()
+  const [job, assignment, existing] = await Promise.all([
+    queryOne<{ id: string; title: string; poster_id: string }>(
+      'SELECT id, title, poster_id FROM jobs WHERE id = $1',
+      [id]
+    ),
+    queryOne<{ tasker_id: string }>(
+      'SELECT tasker_id FROM job_assignments WHERE job_id = $1',
+      [id]
+    ),
+    queryOne<{ id: string; status: string }>(
+      'SELECT id, status FROM disputes WHERE job_id = $1',
+      [id]
+    ),
+  ])
 
   if (!job) notFound()
 
-  // Check if user is a party to this job
-  const { data: assignment } = await supabase
-    .from('job_assignments')
-    .select('tasker_id')
-    .eq('job_id', id)
-    .single()
-
-  const isParty = job.poster_id === user.id || assignment?.tasker_id === user.id
+  const isParty = job.poster_id === session.userId || assignment?.tasker_id === session.userId
   if (!isParty) redirect('/dashboard')
-
-  // Check for existing dispute
-  const { data: existing } = await supabase
-    .from('disputes')
-    .select('id, status')
-    .eq('job_id', id)
-    .single()
 
   return (
     <>
@@ -59,7 +51,7 @@ export default async function DisputePage({ params }: Props) {
             Our team is reviewing it.
           </div>
         ) : (
-          <DisputeForm jobId={id} userId={user.id} />
+          <DisputeForm jobId={id} userId={session.userId} />
         )}
       </div>
     </>

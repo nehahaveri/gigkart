@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Send, Loader2, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatRelativeTime } from '@/lib/utils/format'
@@ -11,7 +10,7 @@ type Message = {
   sender_id: string
   body: string
   created_at: string
-  sender?: { full_name: string }[] | null
+  sender_name?: string | null
 }
 
 interface JobChatProps {
@@ -30,42 +29,24 @@ export function JobChat({ jobId, currentUserId, otherName }: JobChatProps) {
   const [unread, setUnread] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const lastMsgAt = useRef<string | null>(null)
+  const prevCount = useRef(0)
 
   // Load history on first open
   useEffect(() => {
     if (!open) return
     setUnread(0)
+    setLoading(true)
 
-    const supabase = createClient()
-    supabase
-      .from('messages')
-      .select('id, sender_id, body, created_at, sender:users!messages_sender_id_fkey(full_name)')
-      .eq('job_id', jobId)
-      .order('created_at', { ascending: true })
-      .limit(100)
-      .then(({ data }) => {
-        setMessages((data ?? []) as unknown as Message[])
+    fetch(`/api/messages/${jobId}`)
+      .then((r) => r.json())
+      .then((data: Message[]) => {
+        setMessages(data ?? [])
+        if (data?.length) lastMsgAt.current = data[data.length - 1].created_at
+        prevCount.current = data?.length ?? 0
         setLoading(false)
       })
-
-    // Real-time
-    const channel = supabase
-      .channel(`job-chat-${jobId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `job_id=eq.${jobId}` },
-        (payload) => {
-          const msg = payload.new as Message
-          setMessages((prev) => {
-            // avoid duplicate from optimistic add
-            if (prev.some((m) => m.id === msg.id)) return prev
-            return [...prev, msg]
-          })
-        }
-      )
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
+      .catch(() => setLoading(false))
   }, [open, jobId])
 
   // Scroll to bottom whenever messages change
@@ -75,25 +56,39 @@ export function JobChat({ jobId, currentUserId, otherName }: JobChatProps) {
     }
   }, [messages, open])
 
-  // Badge: count incoming messages when panel is closed
-  useEffect(() => {
-    if (open) return
-    const supabase = createClient()
-    const channel = supabase
-      .channel(`job-chat-badge-${jobId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `job_id=eq.${jobId}` },
-        (payload) => {
-          const msg = payload.new as Message
-          if (msg.sender_id !== currentUserId) {
-            setUnread((n) => n + 1)
-          }
+  // Poll for new messages (whether open or closed, for badge count)
+  const poll = useCallback(() => {
+    const url = lastMsgAt.current
+      ? `/api/messages/${jobId}?after=${encodeURIComponent(lastMsgAt.current)}`
+      : null
+    if (!url) return
+
+    fetch(url)
+      .then((r) => r.json())
+      .then((data: Message[]) => {
+        if (!data?.length) return
+        const fresh = data.filter((m) => {
+          // Only count incoming messages for badge when closed
+          if (!open && m.sender_id !== currentUserId) setUnread((n) => n + 1)
+          return true
+        })
+        if (!fresh.length) return
+        lastMsgAt.current = fresh[fresh.length - 1].created_at
+        if (open) {
+          setMessages((prev) => {
+            const ids = new Set(prev.map((m) => m.id))
+            return [...prev, ...fresh.filter((m) => !ids.has(m.id))]
+          })
         }
-      )
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [open, jobId, currentUserId])
+      })
+      .catch(() => {})
+  }, [jobId, open, currentUserId])
+
+  useEffect(() => {
+    if (loading) return
+    const interval = setInterval(poll, 4_000)
+    return () => clearInterval(interval)
+  }, [loading, poll])
 
   async function sendMessage() {
     const text = body.trim()
@@ -101,14 +96,26 @@ export function JobChat({ jobId, currentUserId, otherName }: JobChatProps) {
     setSending(true)
     setBody('')
 
-    const supabase = createClient()
-    const { error } = await supabase.from('messages').insert({
-      job_id: jobId,
+    // Optimistic add
+    const optimistic: Message = {
+      id: `opt-${Date.now()}`,
       sender_id: currentUserId,
       body: text,
+      created_at: new Date().toISOString(),
+    }
+    setMessages((prev) => [...prev, optimistic])
+
+    const res = await fetch(`/api/messages/${jobId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: text }),
     })
+
     setSending(false)
-    if (error) setBody(text) // restore on error
+    if (!res.ok) {
+      setBody(text) // restore on error
+      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {

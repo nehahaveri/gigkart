@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
-import { createServerClient } from '@supabase/ssr'
+import { execute } from '@/lib/db'
 
 export async function POST(request: Request) {
   const body = await request.text()
@@ -20,22 +20,15 @@ export async function POST(request: Request) {
 
   const event = JSON.parse(body)
 
-  // Use service role for webhook processing
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  )
-
   switch (event.event) {
     case 'payment.captured': {
       const payment = event.payload.payment.entity
       const jobId = payment.notes?.job_id
       if (jobId) {
-        await supabase
-          .from('jobs')
-          .update({ escrow_payment_id: payment.id })
-          .eq('id', jobId)
+        await execute(
+          'UPDATE jobs SET escrow_payment_id = $1 WHERE id = $2',
+          [payment.id, jobId]
+        )
       }
       break
     }
@@ -43,15 +36,14 @@ export async function POST(request: Request) {
     case 'payment.failed': {
       const payment = event.payload.payment.entity
       const jobId = payment.notes?.job_id
-      if (jobId) {
-        // Notify poster that payment failed — job stays open without escrow
-        await supabase.from('notifications').insert({
-          user_id: payment.notes.poster_id,
-          type: 'payment_failed',
-          title: 'Payment failed',
-          body: 'Your escrow payment could not be processed. Please try again.',
-          data: { job_id: jobId },
-        })
+      const posterId = payment.notes?.poster_id
+      if (jobId && posterId) {
+        await execute(
+          `INSERT INTO notifications (user_id, type, title, body, data)
+           VALUES ($1, 'payment_failed', 'Payment failed',
+                   'Your escrow payment could not be processed. Please try again.', $2)`,
+          [posterId, JSON.stringify({ job_id: jobId })]
+        )
       }
       break
     }

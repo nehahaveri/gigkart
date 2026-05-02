@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { queryOne, query } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { BackButton } from '@/components/ui/back-button'
 import { Badge } from '@/components/ui/badge'
@@ -11,47 +12,42 @@ import type { KycRequest } from '@/types'
 export const metadata: Metadata = { title: 'KYC Review — Admin' }
 
 export default async function AdminKycPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  const profile = await queryOne<{ role: string[] }>(
+    'SELECT role FROM users WHERE id = $1',
+    [session.userId]
+  )
 
   if (!Array.isArray(profile?.role) || !profile.role.includes('admin')) {
     redirect('/dashboard')
   }
 
-  // Fetch all KYC requests with user profiles
-  const { data: requests } = await supabase
-    .from('kyc_requests')
-    .select('*, user:users!kyc_requests_user_id_fkey(id, full_name, avatar_url, phone)')
-    .order('submitted_at', { ascending: false })
+  type KycRow = KycRequest & {
+    u_id: string
+    u_full_name: string | null
+    u_avatar_url: string | null
+    u_phone: string | null
+  }
 
-  // Generate short-lived signed URLs for the private document storage
-  const withSignedUrls = await Promise.all(
-    (requests ?? []).map(async (req: KycRequest & { user?: unknown }) => {
-      const [front, back, selfie] = await Promise.all([
-        supabase.storage.from('kyc-documents').createSignedUrl(req.front_url, 3600),
-        req.back_url
-          ? supabase.storage.from('kyc-documents').createSignedUrl(req.back_url, 3600)
-          : Promise.resolve({ data: null }),
-        supabase.storage.from('kyc-documents').createSignedUrl(req.selfie_url, 3600),
-      ])
-      return {
-        ...req,
-        front_signed_url:  front.data?.signedUrl ?? null,
-        back_signed_url:   back.data?.signedUrl  ?? null,
-        selfie_signed_url: selfie.data?.signedUrl ?? null,
-      }
-    })
+  // Fetch all KYC requests with user profiles
+  const rawRequests = await query<KycRow>(
+    `SELECT k.*, u.id AS u_id, u.full_name AS u_full_name, u.avatar_url AS u_avatar_url, u.phone AS u_phone
+     FROM kyc_requests k
+     JOIN users u ON u.id = k.user_id
+     ORDER BY k.submitted_at DESC`
   )
+
+  // Shape with user sub-object; document URLs are stored as paths — in local dev served directly
+  const withSignedUrls = rawRequests.map((req) => ({
+    ...req,
+    user: { id: req.u_id, full_name: req.u_full_name, avatar_url: req.u_avatar_url, phone: req.u_phone } as unknown as import('@/types').User,
+    // In production these would be signed URLs from S3/R2; for now use the stored paths as-is
+    front_signed_url:  req.front_url ?? null,
+    back_signed_url:   req.back_url  ?? null,
+    selfie_signed_url: req.selfie_url ?? null,
+  }))
 
   const pendingCount = withSignedUrls.filter((r) => r.status === 'pending').length
 

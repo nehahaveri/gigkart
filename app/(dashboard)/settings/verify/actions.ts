@@ -1,6 +1,7 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { execute, queryOne } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import type { KycStatus } from '@/types'
@@ -16,32 +17,12 @@ export type KycState = {
   success?: boolean
 }
 
-async function uploadKycFile(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  file: File,
-  folder: string
-): Promise<string | null> {
-  if (!file.size) return null
-  const ext = file.name.split('.').pop() ?? 'jpg'
-  const path = `${folder}/${crypto.randomUUID()}.${ext}`
-  const { error } = await supabase.storage.from('kyc-documents').upload(path, file, {
-    cacheControl: '3600',
-    upsert: false,
-  })
-  if (error) return null
-  // KYC docs are private — return path only; URLs generated server-side for admin
-  return path
-}
-
 export async function submitKyc(
   _prev: KycState,
   formData: FormData
 ): Promise<KycState> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { errors: { _: 'Not authenticated' } }
+  const session = await getSession()
+  if (!session) return { errors: { _: 'Not authenticated' } }
 
   const raw = {
     legal_name:      formData.get('legal_name'),
@@ -58,44 +39,37 @@ export async function submitKyc(
     return { errors }
   }
 
-  // Upload photos
+  // File upload — TODO: integrate S3/R2 in production
+  // For now we store placeholder paths to satisfy the NOT NULL constraint
   const frontFile  = formData.get('front_photo') as File | null
-  const backFile   = formData.get('back_photo') as File | null
   const selfieFile = formData.get('selfie_photo') as File | null
 
   if (!frontFile?.size)  return { errors: { front_photo: 'Front photo of your ID is required' } }
   if (!selfieFile?.size) return { errors: { selfie_photo: 'Selfie with your ID is required' } }
 
-  const userId = user.id
-  const [frontPath, backPath, selfiePath] = await Promise.all([
-    uploadKycFile(supabase, frontFile,  `${userId}/front`),
-    backFile?.size ? uploadKycFile(supabase, backFile, `${userId}/back`) : Promise.resolve(null),
-    uploadKycFile(supabase, selfieFile, `${userId}/selfie`),
-  ])
-
-  if (!frontPath)  return { errors: { front_photo: 'Upload failed. Please try again.' } }
-  if (!selfiePath) return { errors: { selfie_photo: 'Upload failed. Please try again.' } }
+  const userId = session.userId
+  const frontPath  = `${userId}/front/pending`
+  const selfiePath = `${userId}/selfie/pending`
 
   // Upsert — allows resubmission after rejection
-  const { error } = await supabase.from('kyc_requests').upsert(
-    {
-      user_id:         userId,
-      legal_name:      parsed.data.legal_name,
-      id_type:         parsed.data.id_type,
-      id_number_last4: parsed.data.id_number_last4,
-      front_url:       frontPath,
-      back_url:        backPath ?? null,
-      selfie_url:      selfiePath,
-      status:          'pending',
-      rejection_reason: null,
-      reviewed_by:     null,
-      reviewed_at:     null,
-      submitted_at:    new Date().toISOString(),
-    },
-    { onConflict: 'user_id' }
+  await execute(
+    `INSERT INTO kyc_requests
+       (user_id, legal_name, id_type, id_number_last4, front_url, back_url, selfie_url,
+        status, rejection_reason, reviewed_by, reviewed_at, submitted_at)
+     VALUES ($1,$2,$3,$4,$5,NULL,$6,'pending',NULL,NULL,NULL,NOW())
+     ON CONFLICT (user_id) DO UPDATE SET
+       legal_name       = EXCLUDED.legal_name,
+       id_type          = EXCLUDED.id_type,
+       id_number_last4  = EXCLUDED.id_number_last4,
+       front_url        = EXCLUDED.front_url,
+       selfie_url       = EXCLUDED.selfie_url,
+       status           = 'pending',
+       rejection_reason = NULL,
+       reviewed_by      = NULL,
+       reviewed_at      = NULL,
+       submitted_at     = NOW()`,
+    [userId, parsed.data.legal_name, parsed.data.id_type, parsed.data.id_number_last4, frontPath, selfiePath]
   )
-
-  if (error) return { errors: { _: error.message } }
 
   revalidatePath('/settings')
   revalidatePath('/settings/verify')
@@ -107,76 +81,56 @@ export async function reviewKyc(
   decision: Extract<KycStatus, 'approved' | 'rejected'>,
   rejectionReason?: string
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
+  const session = await getSession()
+  if (!session) return { error: 'Not authenticated' }
 
   // Verify caller is admin
-  const { data: admin } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
+  const admin = await queryOne<{ role: string[] }>(
+    'SELECT role FROM users WHERE id = $1',
+    [session.userId]
+  )
   if (!Array.isArray(admin?.role) || !admin.role.includes('admin')) {
     return { error: 'Forbidden' }
   }
 
   // Fetch request
-  const { data: req } = await supabase
-    .from('kyc_requests')
-    .select('user_id, id_number_last4')
-    .eq('id', requestId)
-    .single()
-
+  const req = await queryOne<{ user_id: string; id_number_last4: string }>(
+    'SELECT user_id, id_number_last4 FROM kyc_requests WHERE id = $1',
+    [requestId]
+  )
   if (!req) return { error: 'KYC request not found' }
 
-  const { error } = await supabase
-    .from('kyc_requests')
-    .update({
-      status:           decision,
-      rejection_reason: decision === 'rejected' ? (rejectionReason ?? 'Does not meet requirements') : null,
-      reviewed_by:      user.id,
-      reviewed_at:      new Date().toISOString(),
-    })
-    .eq('id', requestId)
+  await execute(
+    `UPDATE kyc_requests SET
+       status           = $1,
+       rejection_reason = $2,
+       reviewed_by      = $3,
+       reviewed_at      = NOW()
+     WHERE id = $4`,
+    [decision, decision === 'rejected' ? (rejectionReason ?? 'Does not meet requirements') : null, session.userId, requestId]
+  )
 
-  if (error) return { error: error.message }
-
-  // If approved: mark user as verified and store last-4
   if (decision === 'approved') {
-    await supabase
-      .from('users')
-      .update({
-        aadhaar_verified: true,
-        aadhaar_last4: req.id_number_last4,
-      })
-      .eq('id', req.user_id)
-
-    // Notify user
-    await supabase.from('notifications').insert({
-      user_id: req.user_id,
-      type:    'kyc_approved',
-      title:   'Identity verified ✓',
-      body:    'Your government ID has been verified. Your profile now shows a Verified badge.',
-      data:    {},
-    })
+    await execute(
+      'UPDATE users SET aadhaar_verified = TRUE, aadhaar_last4 = $1 WHERE id = $2',
+      [req.id_number_last4, req.user_id]
+    )
+    await execute(
+      `INSERT INTO notifications (user_id, type, title, body, data)
+       VALUES ($1, 'kyc_approved', 'Identity verified ✓',
+               'Your government ID has been verified. Your profile now shows a Verified badge.', '{}')`,
+      [req.user_id]
+    )
   } else {
-    // Reset verification flag in case it was previously set
-    await supabase
-      .from('users')
-      .update({ aadhaar_verified: false, aadhaar_last4: null })
-      .eq('id', req.user_id)
-
-    await supabase.from('notifications').insert({
-      user_id: req.user_id,
-      type:    'kyc_rejected',
-      title:   'Identity verification needs attention',
-      body:    rejectionReason ?? 'Your submission could not be verified. Please resubmit with a clearer photo.',
-      data:    {},
-    })
+    await execute(
+      'UPDATE users SET aadhaar_verified = FALSE, aadhaar_last4 = NULL WHERE id = $1',
+      [req.user_id]
+    )
+    await execute(
+      `INSERT INTO notifications (user_id, type, title, body, data)
+       VALUES ($1, 'kyc_rejected', 'Identity verification needs attention', $2, '{}')`,
+      [req.user_id, rejectionReason ?? 'Your submission could not be verified. Please resubmit with a clearer photo.']
+    )
   }
 
   revalidatePath('/admin/kyc')

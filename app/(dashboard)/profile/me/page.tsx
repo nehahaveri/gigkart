@@ -1,13 +1,9 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getSession } from '@/lib/auth/session'
 
 // /profile/me → redirects to the current user's public profile page.
 export default async function MyProfileRedirect() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
-  redirect(`/profile/${user.id}`)
+  const session = await getSession()
+  if (!session) redirect('/login')
+  redirect(`/profile/${session.userId}`)
 }

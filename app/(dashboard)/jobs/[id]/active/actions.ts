@@ -1,24 +1,20 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { queryOne, execute } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 export async function startJob(assignmentId: string, jobId: string) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
+  const session = await getSession()
+  if (!session) return { error: 'Not authenticated' }
 
-  const { error } = await supabase
-    .from('job_assignments')
-    .update({ started_at: new Date().toISOString() })
-    .eq('id', assignmentId)
-    .eq('tasker_id', user.id)
-
-  if (error) return { error: error.message }
-  revalidatePath(`/jobs/${jobId}/active`)
+  await execute(
+    `UPDATE job_assignments SET started_at = NOW()
+     WHERE id = $1 AND tasker_id = $2`,
+    [assignmentId, session.userId]
+  )
+  revalidatePath(`/job/${jobId}/active`)
   return { success: true }
 }
 
@@ -27,108 +23,66 @@ export async function submitProof(
   jobId: string,
   formData: FormData
 ) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
+  const session = await getSession()
+  if (!session) return { error: 'Not authenticated' }
 
-  // Upload proof photos
-  const files = formData.getAll('proof_photos') as File[]
+  // Photo uploads skipped in local dev (no cloud storage configured).
+  // Add S3/R2 upload logic here when going to production.
   const urls: string[] = []
-  for (const file of files) {
-    if (!file.size) continue
-    const ext = file.name.split('.').pop()
-    const path = `${jobId}/${crypto.randomUUID()}.${ext}`
-    const { error } = await supabase.storage
-      .from('proof-photos')
-      .upload(path, file)
-    if (!error) {
-      const { data } = supabase.storage.from('proof-photos').getPublicUrl(path)
-      urls.push(data.publicUrl)
-    }
-  }
 
-  const { error } = await supabase
-    .from('job_assignments')
-    .update({
-      submitted_at: new Date().toISOString(),
-      proof_photos: urls,
-    })
-    .eq('id', assignmentId)
-    .eq('tasker_id', user.id)
-
-  if (error) return { error: error.message }
-  revalidatePath(`/jobs/${jobId}/active`)
+  await execute(
+    `UPDATE job_assignments
+       SET submitted_at = NOW(), proof_photos = $1
+     WHERE id = $2 AND tasker_id = $3`,
+    [urls, assignmentId, session.userId]
+  )
+  revalidatePath(`/job/${jobId}/active`)
   return { success: true }
 }
 
 /** Poster cancels a job (only if proof hasn't been submitted yet) */
 export async function cancelJob(jobId: string) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
+  const session = await getSession()
+  if (!session) return { error: 'Not authenticated' }
 
-  const { data: assignment } = await supabase
-    .from('job_assignments')
-    .select('submitted_at')
-    .eq('job_id', jobId)
-    .maybeSingle()
-
+  const assignment = await queryOne<{ submitted_at: string | null }>(
+    'SELECT submitted_at FROM job_assignments WHERE job_id = $1 LIMIT 1',
+    [jobId]
+  )
   if (assignment?.submitted_at) {
     return { error: 'Cannot cancel after tasker has submitted proof. Raise a dispute instead.' }
   }
 
-  const { error } = await supabase
-    .from('jobs')
-    .update({ status: 'cancelled' })
-    .eq('id', jobId)
-    .eq('poster_id', user.id)
-
-  if (error) return { error: error.message }
-  revalidatePath(`/jobs/${jobId}/active`)
+  await execute(
+    `UPDATE jobs SET status = 'cancelled' WHERE id = $1 AND poster_id = $2`,
+    [jobId, session.userId]
+  )
+  revalidatePath(`/job/${jobId}/active`)
   revalidatePath('/my-jobs')
   return { success: true }
 }
 
 /** Tasker withdraws from an active job (only if proof hasn't been submitted) */
 export async function abandonJob(assignmentId: string, jobId: string) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
+  const session = await getSession()
+  if (!session) return { error: 'Not authenticated' }
 
-  const { data: assignment } = await supabase
-    .from('job_assignments')
-    .select('submitted_at')
-    .eq('id', assignmentId)
-    .eq('tasker_id', user.id)
-    .single()
-
+  const assignment = await queryOne<{ submitted_at: string | null }>(
+    'SELECT submitted_at FROM job_assignments WHERE id = $1 AND tasker_id = $2',
+    [assignmentId, session.userId]
+  )
   if (!assignment) return { error: 'Assignment not found' }
-  if (assignment.submitted_at) {
-    return { error: 'Cannot withdraw after submitting proof' }
-  }
+  if (assignment.submitted_at) return { error: 'Cannot withdraw after submitting proof' }
 
-  await supabase
-    .from('job_assignments')
-    .delete()
-    .eq('id', assignmentId)
-    .eq('tasker_id', user.id)
-
-  await supabase
-    .from('jobs')
-    .update({ status: 'open' })
-    .eq('id', jobId)
-
-  await supabase
-    .from('offers')
-    .update({ status: 'pending' })
-    .eq('job_id', jobId)
-    .eq('tasker_id', user.id)
+  await execute(
+    'DELETE FROM job_assignments WHERE id = $1 AND tasker_id = $2',
+    [assignmentId, session.userId]
+  )
+  await execute(`UPDATE jobs SET status = 'open' WHERE id = $1`, [jobId])
+  await execute(
+    `UPDATE offers SET status = 'pending' WHERE job_id = $1 AND tasker_id = $2`,
+    [jobId, session.userId]
+  )
 
   revalidatePath('/my-work')
   redirect('/my-work')

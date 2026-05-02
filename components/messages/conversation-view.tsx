@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Send, Loader2, ChevronDown, Info } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatRelativeTime } from '@/lib/utils/format'
@@ -12,7 +11,7 @@ type Message = {
   sender_id: string
   body: string
   created_at: string
-  sender?: { full_name: string | null }[] | null
+  sender_name?: string | null
 }
 
 interface ConversationViewProps {
@@ -40,40 +39,47 @@ export function ConversationView({
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const lastMsgAt = useRef<string | null>(null)
 
-  // Load history
+  // Initial load
   useEffect(() => {
-    const supabase = createClient()
-    supabase
-      .from('messages')
-      .select('id, sender_id, body, created_at, sender:users!messages_sender_id_fkey(full_name)')
-      .eq('job_id', jobId)
-      .order('created_at', { ascending: true })
-      .limit(200)
-      .then(({ data }) => {
-        setMessages((data ?? []) as unknown as Message[])
+    fetch(`/api/messages/${jobId}`)
+      .then((r) => r.json())
+      .then((data: Message[]) => {
+        setMessages(data ?? [])
+        if (data?.length) lastMsgAt.current = data[data.length - 1].created_at
         setLoading(false)
         setTimeout(() => bottomRef.current?.scrollIntoView(), 50)
       })
-
-    // Real-time subscription
-    const channel = supabase
-      .channel(`conversation-${jobId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `job_id=eq.${jobId}` },
-        (payload) => {
-          const msg = payload.new as Message
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === msg.id)) return prev
-            return [...prev, msg]
-          })
-        }
-      )
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
+      .catch(() => setLoading(false))
   }, [jobId])
+
+  // Polling — fetch new messages every 4s
+  const poll = useCallback(() => {
+    const url = lastMsgAt.current
+      ? `/api/messages/${jobId}?after=${encodeURIComponent(lastMsgAt.current)}`
+      : `/api/messages/${jobId}`
+
+    fetch(url)
+      .then((r) => r.json())
+      .then((data: Message[]) => {
+        if (!data?.length) return
+        setMessages((prev) => {
+          const ids = new Set(prev.map((m) => m.id))
+          const fresh = data.filter((m) => !ids.has(m.id))
+          if (!fresh.length) return prev
+          lastMsgAt.current = fresh[fresh.length - 1].created_at
+          return [...prev, ...fresh]
+        })
+      })
+      .catch(() => {})
+  }, [jobId])
+
+  useEffect(() => {
+    if (loading) return
+    const interval = setInterval(poll, 4_000)
+    return () => clearInterval(interval)
+  }, [loading, poll])
 
   // Auto-scroll when new messages arrive and user is at bottom
   useEffect(() => {
@@ -105,21 +111,22 @@ export function ConversationView({
     setSending(true)
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
 
-    const supabase = createClient()
-    const { error, data } = await supabase
-      .from('messages')
-      .insert({ job_id: jobId, sender_id: currentUserId, body: text })
-      .select('id, sender_id, body, created_at')
-      .single()
+    const res = await fetch(`/api/messages/${jobId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: text }),
+    })
 
     setSending(false)
-    if (error) {
+    if (!res.ok) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
       return
     }
-    // Replace optimistic with real
+    // Replace optimistic with a confirmed version (same content, poll will confirm later)
     setMessages((prev) =>
-      prev.map((m) => (m.id === optimisticId ? (data as Message) : m))
+      prev.map((m) =>
+        m.id === optimisticId ? { ...m, id: `sent-${Date.now()}` } : m
+      )
     )
   }
 

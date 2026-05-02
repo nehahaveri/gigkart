@@ -1,14 +1,15 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { execute, queryOne } from '@/lib/db'
+import { getSession, destroySession } from '@/lib/auth/session'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 const profileSchema = z.object({
-  full_name: z.string().min(2),
-  city: z.string().min(2),
-  upi_id: z.string().optional(),
+  full_name:    z.string().min(2),
+  city:         z.string().min(2),
+  upi_id:       z.string().optional(),
   bank_account: z.string().optional(),
 })
 
@@ -21,16 +22,13 @@ export async function updateProfile(
   _prev: SettingsState,
   formData: FormData
 ): Promise<SettingsState> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { errors: { _: 'Not authenticated' } }
+  const session = await getSession()
+  if (!session) return { errors: { _: 'Not authenticated' } }
 
   const raw = {
-    full_name: formData.get('full_name'),
-    city: formData.get('city'),
-    upi_id: formData.get('upi_id') || undefined,
+    full_name:    formData.get('full_name'),
+    city:         formData.get('city'),
+    upi_id:       formData.get('upi_id') || undefined,
     bank_account: formData.get('bank_account') || undefined,
   }
 
@@ -43,48 +41,42 @@ export async function updateProfile(
     return { errors }
   }
 
-  const { error } = await supabase
-    .from('users')
-    .update({
-      full_name: parsed.data.full_name,
-      city: parsed.data.city,
-      upi_id: parsed.data.upi_id ?? null,
-      bank_account: parsed.data.bank_account ?? null,
-    })
-    .eq('id', user.id)
-
-  if (error) return { errors: { _: error.message } }
+  await execute(
+    `UPDATE users
+       SET full_name = $1, city = $2, upi_id = $3, bank_account = $4
+     WHERE id = $5`,
+    [
+      parsed.data.full_name,
+      parsed.data.city,
+      parsed.data.upi_id ?? null,
+      parsed.data.bank_account ?? null,
+      session.userId,
+    ]
+  )
 
   revalidatePath('/settings')
   return { success: true }
 }
 
 export async function signOut() {
-  const supabase = await createClient()
-  await supabase.auth.signOut()
+  await destroySession()
   redirect('/login')
 }
 
 export async function deleteAccount() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) {
-    redirect('/login')
-  }
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  // Soft-delete by anonymizing — actual auth.users delete requires service role
-  await supabase
-    .from('users')
-    .update({
-      full_name: '[deleted]',
-      avatar_url: null,
-      upi_id: null,
-      bank_account: null,
-    })
-    .eq('id', user.id)
+  // Anonymise the record — preserves referential integrity
+  await execute(
+    `UPDATE users
+       SET full_name = '[deleted]', email = $1,
+           avatar_url = NULL, upi_id = NULL, bank_account = NULL,
+           password_hash = ''
+     WHERE id = $2`,
+    [`deleted_${session.userId}@gigkart.local`, session.userId]
+  )
 
-  await supabase.auth.signOut()
+  await destroySession()
   redirect('/')
 }

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { query } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import Link from 'next/link'
 import { MessageCircle, ChevronRight, Briefcase, Clock } from 'lucide-react'
@@ -20,93 +21,57 @@ type Convo = {
 }
 
 export default async function MessagesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  // 1) All assignments where I'm the tasker
-  const { data: myAssignments } = await supabase
-    .from('job_assignments')
-    .select('job_id, job:jobs!job_assignments_job_id_fkey(id, title, status, poster:users!jobs_poster_id_fkey(id, full_name, avatar_url))')
-    .eq('tasker_id', user.id)
+  // Fetch all conversations: jobs where I'm tasker OR poster with an accepted assignment
+  const rows = await query<{
+    job_id: string; job_title: string; job_status: string
+    other_id: string; other_name: string | null; other_avatar: string | null
+    my_role: 'poster' | 'tasker'
+    last_msg: string | null; last_msg_at: string | null
+  }>(
+    `WITH my_convos AS (
+       -- As tasker
+       SELECT a.job_id, j.title AS job_title, j.status AS job_status,
+              j.poster_id AS other_id, p.full_name AS other_name, p.avatar_url AS other_avatar,
+              'tasker'::text AS my_role
+       FROM job_assignments a
+       JOIN jobs j ON j.id = a.job_id
+       JOIN users p ON p.id = j.poster_id
+       WHERE a.tasker_id = $1
+       UNION ALL
+       -- As poster
+       SELECT a.job_id, j.title AS job_title, j.status AS job_status,
+              a.tasker_id AS other_id, t.full_name AS other_name, t.avatar_url AS other_avatar,
+              'poster'::text AS my_role
+       FROM job_assignments a
+       JOIN jobs j ON j.id = a.job_id
+       JOIN users t ON t.id = a.tasker_id
+       WHERE j.poster_id = $1
+     ),
+     latest_msgs AS (
+       SELECT DISTINCT ON (job_id) job_id, body, created_at
+       FROM messages
+       ORDER BY job_id, created_at DESC
+     )
+     SELECT c.*, lm.body AS last_msg, lm.created_at AS last_msg_at
+     FROM my_convos c
+     LEFT JOIN latest_msgs lm ON lm.job_id = c.job_id
+     ORDER BY lm.created_at DESC NULLS LAST`,
+    [session.userId]
+  )
 
-  // 2) All assignments on my posted jobs where I'm the poster
-  const { data: myJobAssignments } = await supabase
-    .from('job_assignments')
-    .select('job_id, tasker:users!job_assignments_tasker_id_fkey(id, full_name, avatar_url), job:jobs!job_assignments_job_id_fkey(id, title, status, poster_id)')
-
-  const posterConvos = (myJobAssignments ?? []).filter((a) => {
-    const j = a.job as unknown as { poster_id: string }
-    return j?.poster_id === user.id
-  })
-
-  // 3) Collect all job_ids in this conversation list
-  const allJobIds = [
-    ...(myAssignments ?? []).map((a) => a.job_id),
-    ...posterConvos.map((a) => a.job_id),
-  ]
-
-  // 4) Fetch latest message per job
-  const latestMessages: Record<string, { body: string; created_at: string }> = {}
-  if (allJobIds.length > 0) {
-    const { data: msgs } = await supabase
-      .from('messages')
-      .select('job_id, body, created_at')
-      .in('job_id', allJobIds)
-      .order('created_at', { ascending: false })
-
-    for (const msg of msgs ?? []) {
-      if (!latestMessages[msg.job_id]) {
-        latestMessages[msg.job_id] = { body: msg.body, created_at: msg.created_at }
-      }
-    }
-  }
-
-  // Build conversation list
-  const convos: Convo[] = []
-
-  for (const a of myAssignments ?? []) {
-    const j = a.job as unknown as { id: string; title: string; status: string; poster: { id: string; full_name: string | null; avatar_url: string | null } }
-    if (!j) continue
-    const lm = latestMessages[a.job_id]
-    convos.push({
-      jobId: j.id,
-      jobTitle: j.title,
-      jobStatus: j.status,
-      otherName: j.poster?.full_name ?? 'Poster',
-      otherAvatar: j.poster?.avatar_url ?? null,
-      lastMessage: lm?.body ?? null,
-      lastMessageAt: lm?.created_at ?? null,
-      myRole: 'tasker',
-    })
-  }
-
-  for (const a of posterConvos) {
-    const tasker = a.tasker as unknown as { id: string; full_name: string | null; avatar_url: string | null }
-    const j = a.job as unknown as { id: string; title: string; status: string }
-    if (!j) continue
-    const lm = latestMessages[a.job_id]
-    convos.push({
-      jobId: j.id,
-      jobTitle: j.title,
-      jobStatus: j.status,
-      otherName: tasker?.full_name ?? 'Tasker',
-      otherAvatar: tasker?.avatar_url ?? null,
-      lastMessage: lm?.body ?? null,
-      lastMessageAt: lm?.created_at ?? null,
-      myRole: 'poster',
-    })
-  }
-
-  // Sort: conversations with messages first (by latest message), then by no message
-  convos.sort((a, b) => {
-    if (a.lastMessageAt && b.lastMessageAt) {
-      return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
-    }
-    if (a.lastMessageAt) return -1
-    if (b.lastMessageAt) return 1
-    return 0
-  })
+  const convos: Convo[] = rows.map((r) => ({
+    jobId: r.job_id,
+    jobTitle: r.job_title,
+    jobStatus: r.job_status,
+    otherName: r.other_name ?? (r.my_role === 'tasker' ? 'Poster' : 'Tasker'),
+    otherAvatar: r.other_avatar,
+    lastMessage: r.last_msg,
+    lastMessageAt: r.last_msg_at,
+    myRole: r.my_role,
+  }))
 
   const STATUS_COLOR: Record<string, string> = {
     open: 'bg-success-50 text-success-600',

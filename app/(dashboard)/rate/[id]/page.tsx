@@ -1,5 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { queryOne } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { RatingForm } from './form'
 import { BackButton } from '@/components/ui/back-button'
@@ -11,47 +12,38 @@ export const metadata: Metadata = { title: 'Leave a Review' }
 
 export default async function RatePage({ params }: Props) {
   const { id: jobId } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  if (!user) redirect('/login')
-
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('id, title, poster_id')
-    .eq('id', jobId)
-    .single()
+  const [job, assignment] = await Promise.all([
+    queryOne<{ id: string; title: string; poster_id: string }>(
+      'SELECT id, title, poster_id FROM jobs WHERE id = $1',
+      [jobId]
+    ),
+    queryOne<{ tasker_id: string }>(
+      'SELECT tasker_id FROM job_assignments WHERE job_id = $1',
+      [jobId]
+    ),
+  ])
 
   if (!job) notFound()
 
-  const { data: assignment } = await supabase
-    .from('job_assignments')
-    .select('tasker_id')
-    .eq('job_id', jobId)
-    .single()
-
-  const isPoster = user.id === job.poster_id
-  const isTasker = user.id === assignment?.tasker_id
+  const isPoster = session.userId === job.poster_id
+  const isTasker = session.userId === assignment?.tasker_id
   if (!isPoster && !isTasker) redirect('/dashboard')
 
   const revieweeId = isPoster ? assignment!.tasker_id : job.poster_id
 
-  // Check if already reviewed
-  const { data: existing } = await supabase
-    .from('reviews')
-    .select('id, revealed_at')
-    .eq('job_id', jobId)
-    .eq('reviewer_id', user.id)
-    .single()
-
-  // Get reviewee info
-  const { data: reviewee } = await supabase
-    .from('users')
-    .select('id, full_name')
-    .eq('id', revieweeId)
-    .single()
+  const [existing, reviewee] = await Promise.all([
+    queryOne<{ id: string; revealed_at: string | null }>(
+      'SELECT id, revealed_at FROM reviews WHERE job_id = $1 AND reviewer_id = $2',
+      [jobId, session.userId]
+    ),
+    queryOne<{ id: string; full_name: string | null }>(
+      'SELECT id, full_name FROM users WHERE id = $1',
+      [revieweeId]
+    ),
+  ])
 
   return (
     <>
@@ -75,7 +67,7 @@ export default async function RatePage({ params }: Props) {
         ) : (
           <RatingForm
             jobId={jobId}
-            reviewerId={user.id}
+            reviewerId={session.userId}
             revieweeId={revieweeId}
             revieweeName={reviewee?.full_name ?? 'User'}
           />

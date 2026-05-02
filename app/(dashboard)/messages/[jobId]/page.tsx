@@ -1,13 +1,11 @@
 import { redirect, notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { queryOne } from '@/lib/db'
+import { getSession } from '@/lib/auth/session'
 import { Navbar } from '@/components/layout/navbar'
 import { MessagesLayout } from './thread-view'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import type { User } from '@/types'
-
-// Fields that actually exist in the users table schema
-const USER_FIELDS = 'id, full_name, avatar_url, phone, email, aadhaar_verified, rating_avg, rating_count, completion_rate, city, created_at, upi_id'
 
 interface Props {
   params: Promise<{ jobId: string }>
@@ -15,37 +13,30 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { jobId } = await params
-  const supabase = await createClient()
-  const { data } = await supabase.from('jobs').select('title').eq('id', jobId).single()
-  return { title: data?.title ? `Chat · ${data.title}` : 'Messages' }
+  const job = await queryOne<{ title: string }>('SELECT title FROM jobs WHERE id = $1', [jobId])
+  return { title: job?.title ? `Chat · ${job.title}` : 'Messages' }
 }
 
 export default async function MessagePage({ params }: Props) {
   const { jobId } = await params
-  const supabase = await createClient()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const [job, assignment] = await Promise.all([
+    queryOne<{ id: string; title: string; status: string; poster_id: string }>(
+      'SELECT id, title, status, poster_id FROM jobs WHERE id = $1',
+      [jobId]
+    ),
+    queryOne<{ id: string; tasker_id: string }>(
+      'SELECT id, tasker_id FROM job_assignments WHERE job_id = $1',
+      [jobId]
+    ),
+  ])
 
-  // Step 1: Fetch job (plain fields only, no user join) for access check
-  const { data: job, error: jobError } = await supabase
-    .from('jobs')
-    .select('id, title, status, poster_id')
-    .eq('id', jobId)
-    .single()
+  if (!job) notFound()
 
-  if (jobError || !job) notFound()
-
-  const isPoster = job.poster_id === user.id
-
-  // Step 2: Fetch assignment (plain fields only) for access check
-  const { data: assignment } = await supabase
-    .from('job_assignments')
-    .select('id, tasker_id')
-    .eq('job_id', jobId)
-    .maybeSingle()
-
-  const isTasker = assignment?.tasker_id === user.id
+  const isPoster = job.poster_id === session.userId
+  const isTasker = assignment?.tasker_id === session.userId
 
   // Access control: must be poster OR assigned tasker
   if (!isPoster && !isTasker) redirect('/messages')
@@ -78,13 +69,11 @@ export default async function MessagePage({ params }: Props) {
 
   if (!assignment) redirect('/messages')
 
-  // Step 3: Fetch the OTHER party's profile (separate query, clean)
   const otherUserId = isPoster ? assignment.tasker_id : job.poster_id
-  const { data: otherUserData } = await supabase
-    .from('users')
-    .select(USER_FIELDS)
-    .eq('id', otherUserId)
-    .single()
+  const otherUserData = await queryOne<Partial<User>>(
+    'SELECT id, full_name, avatar_url, phone, email, aadhaar_verified, rating_avg, rating_count, completion_rate, city, created_at, upi_id FROM users WHERE id = $1',
+    [otherUserId]
+  )
 
   const otherUser = (otherUserData ?? { id: otherUserId }) as Partial<User>
   const otherRole: 'poster' | 'tasker' = isPoster ? 'tasker' : 'poster'
@@ -96,7 +85,7 @@ export default async function MessagePage({ params }: Props) {
       <MessagesLayout
         jobId={jobId}
         jobTitle={job.title}
-        currentUserId={user.id}
+        currentUserId={session.userId}
         otherUser={otherUser}
         otherRole={otherRole}
         backHref={backHref}
