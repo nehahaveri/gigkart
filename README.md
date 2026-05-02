@@ -17,21 +17,62 @@ A hyperlocal micro-gig marketplace where posters list short tasks (cleaning, tut
 
 ---
 
-## Getting Started
+## Running Locally
 
-### 1. Install dependencies
+There are two ways to run GigKart locally. Pick the one that fits your situation.
 
+---
+
+### Option A — Docker (no account setup needed)
+
+> **Best for:** trying out the app, contributors, demos.
+> Everything runs inside Docker — no Supabase account, no external services needed.
+> Payments, OTP, and Maps won't work (they require real API keys), but auth, jobs, chat, and KYC all work fully.
+
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/nehahaveri/gigkart.git
+cd gigkart
+
+# 2. Start everything (first run takes ~2 min to build)
+docker compose -f docker-compose.yml -f docker-compose.local.yml --env-file .env.docker up --build
+```
+
+That's it. Services available at:
+
+| Service | URL |
+|---|---|
+| App | http://localhost:3001 |
+| Supabase API | http://localhost:8000 |
+| Supabase Studio (DB admin) | http://localhost:54323 |
+| Postgres | localhost:54322 |
+
+To stop:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml down
+```
+
+---
+
+### Option B — Local dev server (with your own Supabase account)
+
+> **Best for:** active development, testing payments/OTP with real keys.
+
+**Prerequisites:** Node.js 20+, a [Supabase](https://supabase.com) project
+
+**1. Install dependencies**
 ```bash
 npm install
 ```
 
-### 2. Configure environment variables
-
-Copy `.env.local.example` to `.env.local` and fill in your keys:
-
+**2. Configure environment variables**
 ```bash
 cp .env.local.example .env.local
 ```
+
+Fill in `.env.local` with your keys:
 
 | Variable | Where to get it |
 |---|---|
@@ -43,16 +84,13 @@ cp .env.local.example .env.local
 | `MSG91_AUTH_KEY` | MSG91 Dashboard → API |
 | `NEXT_PUBLIC_GOOGLE_MAPS_KEY` | Google Cloud Console → Maps JS API |
 
-### 3. Run database migrations
-
+**3. Run database migrations**
 ```bash
 supabase db push
 ```
+Or apply the files in `supabase/migrations/` manually in order against your Supabase project.
 
-Or apply the files in `supabase/migrations/` manually, in order.
-
-### 4. Start the dev server
-
+**4. Start the dev server**
 ```bash
 npm run dev
 ```
